@@ -28,6 +28,8 @@ pub fn assemble(asm: &str) -> Result<String> {
             }
             "rs" => ">".repeat(parts[1].parse::<usize>()?),
             "ls" => "<".repeat(parts[1].parse::<usize>()?),
+            "loop" => "[".to_string(),
+            "end" => "]".to_string(),
             _ => todo!(),
         };
         program.push_str(&bf_command);
@@ -46,8 +48,8 @@ mod asm {
     // - Set <var>, <val>
     // - Rs <val>
     // - Ls <val>
-    // - Loop <label>
-    // - End <label>
+    // - Loop
+    // - End
     // - Copy <var>, [<var>]+
     //
 
@@ -85,5 +87,12 @@ mod asm {
         let expect = "<<<<";
         let output = assemble(asm).unwrap();
         assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_loop() {
+        let asm = "loop\nls 3\nend";
+        let expect = "[<<<]";
+        let ooutput = assemble(asm).unwrap();
+        assert_eq!(ooutput, expect);
     }
 }

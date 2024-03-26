@@ -1,26 +1,15 @@
+use std::os::macos;
+
 use anyhow::Result;
 use regex;
-// Token
-// - ID: [a-zA-z_][a-zA-Z_0-9]*
-// - NUM: [0-9]+
-// - EQ: =
-// - EXCL: !
-// - LB: {
-// - RB: }
-// - AND: &&
-//
-// Reserved words:
-// - IF: if
-// - ELSE: else
-// - NC: next_cell
-// - PC: prev_cell
 
 #[derive(Debug, PartialEq)]
 pub enum Token<'a> {
     ID(&'a str),
     NUM(&'a str),
+    ASSIGN,
     EQ,
-    EXCL,
+    NE,
     LB,
     RB,
     AND,
@@ -31,28 +20,44 @@ pub struct TokenStream<'a> {
     tokens: Vec<Token<'a>>,
 }
 
-fn match_id(program: &str) -> Option<Token> {
-    let re = regex::Regex::new(r"^[a-zA-z_][a-zA-Z_0-9]*$").unwrap();
-    if re.is_match(program) {
-        Some(Token::ID(program))
-    } else {
-        None
-    }
+macro_rules! match_regex {
+    ($regex: expr, $type: expr) => {
+        |program| -> Option<Token> {
+            let re = regex::Regex::new($regex).unwrap();
+            if re.is_match(program) {
+                Some($type(program))
+            } else {
+                None
+            }
+        }
+    };
 }
 
-fn match_num(program: &str) -> Option<Token> {
-    let re = regex::Regex::new(r"^[0-9]+$").unwrap();
-    if re.is_match(program) {
-        Some(Token::NUM(program))
-    } else {
-        None
-    }
+macro_rules! match_str {
+    ($str: expr, $type: expr) => {
+        |program| -> Option<Token> {
+            if program == $str {
+                Some($type)
+            } else {
+                None
+            }
+        }
+    };
 }
 
 impl<'a> TryFrom<&'a str> for Token<'a> {
     type Error = anyhow::Error;
     fn try_from(program: &'a str) -> Result<Self> {
-        let match_func = [match_id, match_num];
+        let match_func = [
+            match_regex!(r"^[a-zA-z_][a-zA-Z_0-9]*$", Token::ID),
+            match_regex!(r"^[0-9]+$", Token::NUM),
+            match_str!("=", Token::ASSIGN),
+            match_str!("==", Token::EQ),
+            match_str!("!=", Token::NE),
+            match_str!("{", Token::LB),
+            match_str!("}", Token::RB),
+            match_str!("&&", Token::AND),
+        ];
         for func in match_func.iter() {
             if let Some(token) = func(program) {
                 return Ok(token);
@@ -67,7 +72,12 @@ impl<'a> TryFrom<&'a str> for TokenStream<'a> {
     fn try_from(program: &'a str) -> Result<Self> {
         let tokens = program
             .split_whitespace()
-            .map(|token| Token::try_from(token))
+            .map(|token| {
+                let token = Token::try_from(token);
+                println!("{:?}", token);
+                token
+            })
+            .chain(std::iter::once(Ok(Token::EOF)))
             .collect::<Result<Vec<Token>>>()?;
         Ok(Self { tokens })
     }
@@ -112,5 +122,72 @@ mod token {
         for (program, is_match) in testcases.into_iter() {
             test_token!(program, is_match, Token::NUM);
         }
+    }
+    #[test]
+    fn test_assign() {
+        let program = "=";
+        let expect = Token::ASSIGN;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_eq() {
+        let program = "==";
+        let expect = Token::EQ;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_excl() {
+        let program = "!=";
+        let expect = Token::NE;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_lb() {
+        let program = "{";
+        let expect = Token::LB;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_rb() {
+        let program = "}";
+        let expect = Token::RB;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_and() {
+        let program = "&&";
+        let expect = Token::AND;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_token_stream() {
+        let program = "
+            if hello != 123 && world == 456 {
+                abc = 789
+            }";
+        let expect = vec![
+            Token::ID("if"),
+            Token::ID("hello"),
+            Token::NE,
+            Token::NUM("123"),
+            Token::AND,
+            Token::ID("world"),
+            Token::EQ,
+            Token::NUM("456"),
+            Token::LB,
+            Token::ID("abc"),
+            Token::ASSIGN,
+            Token::NUM("789"),
+            Token::RB,
+            Token::EOF,
+        ];
+        let output = TokenStream::try_from(program).unwrap();
+        assert_eq!(output.tokens, expect);
     }
 }

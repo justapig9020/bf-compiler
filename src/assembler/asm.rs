@@ -82,6 +82,14 @@ pub fn assemble(asm: &str) -> Result<String> {
             "loop" => "[".to_string(),
             "end" => "]".to_string(),
             "copy" => parse_copy(&parts[1..])?,
+            "read" => {
+                let var = parts[1].parse::<usize>()?;
+                format!("{},{}", ">".repeat(var), "<".repeat(var))
+            }
+            "write" => {
+                let var = parts[1].parse::<usize>()?;
+                format!("{}.{}", ">".repeat(var), "<".repeat(var))
+            }
             "" | "#" => String::new(),
             s => todo!("'{}' not implemented", s),
         };
@@ -104,6 +112,9 @@ mod asm {
     // - Loop
     // - End
     // - Copy <var>, [<var>]+
+    // - read <var>
+    // - write <var>
+    // - # comment
     //
 
     #[test]
@@ -173,6 +184,20 @@ mod asm {
     fn test_comment() {
         let asm = "#define a 3\nadd a 2\n# this is a comment";
         let expect = ">>>++<<<";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_read() {
+        let asm = "read 3";
+        let expect = ">>>,<<<";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_write() {
+        let asm = "write 4";
+        let expect = ">>>>.<<<<";
         let output = assemble(asm).unwrap();
         assert_eq!(output, expect);
     }

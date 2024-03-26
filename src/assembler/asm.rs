@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::collections::HashMap;
 
 fn parse_copy(parts: &[&str]) -> Result<String> {
     let src = parts[0].parse::<usize>()?;
@@ -15,7 +16,42 @@ fn parse_copy(parts: &[&str]) -> Result<String> {
     ))
 }
 
+fn replace(parts: &[&str], map: &HashMap<&str, usize>) -> String {
+    parts
+        .iter()
+        .map(|part| {
+            if map.contains_key(part) {
+                map[part].to_string()
+            } else {
+                part.to_string()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+fn preprocess(asm: &str) -> Result<String> {
+    let commands = asm.split("\n");
+    let mut program = String::new();
+    let mut map = HashMap::new();
+    for command in commands {
+        let parts: Vec<_> = command.split(" ").collect();
+        let command = match parts[0] {
+            "#define" => {
+                let var = parts[1];
+                let val = parts[2].parse::<usize>()?;
+                map.insert(var, val);
+                String::new()
+            }
+            _ => format!("{}\n", replace(&parts, &map)),
+        };
+        program.push_str(&command);
+    }
+    Ok(program)
+}
+
 pub fn assemble(asm: &str) -> Result<String> {
+    let asm = preprocess(asm)?;
     let commands = asm.split("\n");
     let mut program = String::new();
     for command in commands {
@@ -46,7 +82,8 @@ pub fn assemble(asm: &str) -> Result<String> {
             "loop" => "[".to_string(),
             "end" => "]".to_string(),
             "copy" => parse_copy(&parts[1..])?,
-            _ => todo!(),
+            "" => String::new(),
+            s => todo!("'{}' not implemented", s),
         };
         program.push_str(&bf_command);
     }
@@ -123,6 +160,13 @@ mod asm {
         let asm = "copy 1 2 3 4";
         let expect = ">[-<>>+<<>>>+<<<>>>>+<<<<>]<";
         let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_preprocess() {
+        let asm = "#define a 3\nadd a 2";
+        let expect = "add 3 2\n";
+        let output = preprocess(asm).unwrap();
         assert_eq!(output, expect);
     }
 }

@@ -1,5 +1,3 @@
-use std::os::macos;
-
 use anyhow::Result;
 use regex;
 

@@ -20,6 +20,12 @@ pub struct TokenStream<'a> {
     tokens: Vec<Token<'a>>,
 }
 
+impl<'a> TokenStream<'a> {
+    pub fn into_tokens(self) -> Vec<Token<'a>> {
+        self.tokens
+    }
+}
+
 macro_rules! match_regex {
     ($regex: expr, $type: expr) => {
         |program| -> Option<Token> {

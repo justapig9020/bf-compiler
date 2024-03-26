@@ -40,10 +40,19 @@ fn match_id(program: &str) -> Option<Token> {
     }
 }
 
+fn match_num(program: &str) -> Option<Token> {
+    let re = regex::Regex::new(r"^[0-9]+$").unwrap();
+    if re.is_match(program) {
+        Some(Token::NUM(program))
+    } else {
+        None
+    }
+}
+
 impl<'a> TryFrom<&'a str> for Token<'a> {
     type Error = anyhow::Error;
     fn try_from(program: &'a str) -> Result<Self> {
-        let match_func = [match_id];
+        let match_func = [match_id, match_num];
         for func in match_func.iter() {
             if let Some(token) = func(program) {
                 return Ok(token);
@@ -73,7 +82,9 @@ mod token {
             if $expect_match {
                 assert_eq!(output.unwrap(), $type($program));
             } else {
-                assert!(output.is_err());
+                if let Ok(token) = output {
+                    assert_ne!(token, $type($program));
+                }
             }
         };
     }
@@ -88,6 +99,18 @@ mod token {
         ];
         for (program, is_match) in testcases.into_iter() {
             test_token!(program, is_match, Token::ID);
+        }
+    }
+    #[test]
+    fn test_num() {
+        let testcases = [
+            ("123", true),
+            ("123hello", false),
+            ("hello123", false),
+            ("_123", false),
+        ];
+        for (program, is_match) in testcases.into_iter() {
+            test_token!(program, is_match, Token::NUM);
         }
     }
 }

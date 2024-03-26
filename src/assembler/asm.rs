@@ -82,7 +82,7 @@ pub fn assemble(asm: &str) -> Result<String> {
             "loop" => "[".to_string(),
             "end" => "]".to_string(),
             "copy" => parse_copy(&parts[1..])?,
-            "" => String::new(),
+            "" | "#" => String::new(),
             s => todo!("'{}' not implemented", s),
         };
         program.push_str(&bf_command);
@@ -167,6 +167,13 @@ mod asm {
         let asm = "#define a 3\nadd a 2";
         let expect = "add 3 2\n";
         let output = preprocess(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_comment() {
+        let asm = "#define a 3\nadd a 2\n# this is a comment";
+        let expect = ">>>++<<<";
+        let output = assemble(asm).unwrap();
         assert_eq!(output, expect);
     }
 }

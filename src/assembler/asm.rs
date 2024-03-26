@@ -1,5 +1,20 @@
 use anyhow::Result;
 
+fn parse_copy(parts: &[&str]) -> Result<String> {
+    let src = parts[0].parse::<usize>()?;
+    let mut inner = String::new();
+    for part in &parts[1..] {
+        let dest = part.parse::<usize>()?;
+        inner.push_str(&format!("{}+{}", ">".repeat(dest), "<".repeat(dest)));
+    }
+    let rs_src = ">".repeat(src);
+    let ls_src = "<".repeat(src);
+    Ok(format!(
+        "{}[-{}{}{}]{}",
+        rs_src, ls_src, inner, rs_src, ls_src
+    ))
+}
+
 pub fn assemble(asm: &str) -> Result<String> {
     let commands = asm.split("\n");
     let mut program = String::new();
@@ -30,6 +45,7 @@ pub fn assemble(asm: &str) -> Result<String> {
             "ls" => "<".repeat(parts[1].parse::<usize>()?),
             "loop" => "[".to_string(),
             "end" => "]".to_string(),
+            "copy" => parse_copy(&parts[1..])?,
             _ => todo!(),
         };
         program.push_str(&bf_command);
@@ -94,5 +110,19 @@ mod asm {
         let expect = "[<<<]";
         let ooutput = assemble(asm).unwrap();
         assert_eq!(ooutput, expect);
+    }
+    #[test]
+    fn test_copy_2() {
+        let asm = "copy 1 2 3";
+        let expect = ">[-<>>+<<>>>+<<<>]<";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_copy_3() {
+        let asm = "copy 1 2 3 4";
+        let expect = ">[-<>>+<<>>>+<<<>>>>+<<<<>]<";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
     }
 }

@@ -1,16 +1,4 @@
 use anyhow::Result;
-// Assembly
-// - #define <var> <val>
-// - Add <var>, <val>
-// - Sub <var>, <val>
-// - Set <var>, <val>
-// - Rs <val>
-// - Ls <val>
-// - Loop <label>
-// - End <label>
-// - Copy <var>, [<var>]+
-//
-//
 
 pub fn assemble(asm: &str) -> Result<String> {
     let commands = asm.split("\n");
@@ -38,6 +26,8 @@ pub fn assemble(asm: &str) -> Result<String> {
                     "<".repeat(var)
                 )
             }
+            "rs" => ">".repeat(parts[1].parse::<usize>()?),
+            "ls" => "<".repeat(parts[1].parse::<usize>()?),
             _ => todo!(),
         };
         program.push_str(&bf_command);
@@ -48,6 +38,18 @@ pub fn assemble(asm: &str) -> Result<String> {
 #[cfg(test)]
 mod asm {
     use super::*;
+
+    // Assembly
+    // - #define <var> <val>
+    // - Add <var>, <val>
+    // - Sub <var>, <val>
+    // - Set <var>, <val>
+    // - Rs <val>
+    // - Ls <val>
+    // - Loop <label>
+    // - End <label>
+    // - Copy <var>, [<var>]+
+    //
 
     #[test]
     fn test_add() {
@@ -67,6 +69,20 @@ mod asm {
     fn test_set() {
         let asm = "set 3 5";
         let expect = ">>>[-]+++++<<<";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_rs() {
+        let asm = "rs 3";
+        let expect = ">>>";
+        let output = assemble(asm).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_ls() {
+        let asm = "ls 4";
+        let expect = "<<<<";
         let output = assemble(asm).unwrap();
         assert_eq!(output, expect);
     }

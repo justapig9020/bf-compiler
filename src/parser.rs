@@ -23,18 +23,53 @@ use crate::scanner::{Token, TokenStream};
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, PartialEq, Clone)]
-struct AST<'a> {
-    function: Vec<Statement<'a>>,
+pub struct Function<'a>(Vec<Statement<'a>>);
+
+impl Function<'_> {
+    fn len(&self) -> usize {
+        self.0.iter().map(Statement::len).sum()
+    }
+}
+
+impl<'a> TryFrom<&[Token<'a>]> for Function<'a> {
+    type Error = anyhow::Error;
+    fn try_from(mut value: &[Token<'a>]) -> Result<Self> {
+        let mut statements = vec![];
+        while !value.is_empty() {
+            let Ok(statement) = Statement::try_from(value) else {
+                break;
+            };
+            let consumed = statement.len();
+            statements.push(statement);
+            value = &value[consumed..];
+        }
+        Ok(Self(statements))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 enum Statement<'a> {
-    IF(Bool<'a>, Vec<Statement<'a>>, Option<Vec<Statement<'a>>>),
-    WHILE(Bool<'a>, Vec<Statement<'a>>),
+    IF(Bool<'a>, Function<'a>, Option<Function<'a>>),
+    WHILE(Bool<'a>, Function<'a>),
     Assign(Variable<'a>, Num),
     Move(Direction),
     Input(Variable<'a>),
     Output(Variable<'a>),
+}
+
+impl Statement<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Self::IF(bool, if_func, else_func) => {
+                3 + bool.len() + if_func.len() + else_func.as_ref().map_or(0, |f| 2 + f.len())
+            }
+            Self::WHILE(bool, func) => 3 + bool.len() + func.len(),
+            Self::Assign(_, _) => 3,
+            Self::Move(_) => 1,
+            Self::Input(_) => 4,
+            Self::Output(_) => 4,
+        }
+    }
 }
 
 fn try_parse_input<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
@@ -103,6 +138,40 @@ fn try_parse_assign<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
     }
 }
 
+fn try_parse_while<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    if tokens.len() < 6 {
+        return Err(anyhow!(
+            "Expected at least 6 tokens, found {:?}",
+            tokens.len()
+        ));
+    }
+    match &tokens {
+        [Token::ID("while"), rest @ ..] => {
+            let bools = Bool::try_from(rest)?;
+            let rest = &rest[bools.len()..];
+            match rest {
+                [Token::LB, statements @ ..] => {
+                    let statements = Function::try_from(statements)?;
+                    let consumed = statements.len() + 1; // +1 for LB
+                    if rest[consumed] != Token::RB {
+                        Err(anyhow!("Expected }}, found {:?}", rest[statements.len()]))
+                    } else {
+                        Ok(Statement::WHILE(bools, statements))
+                    }
+                }
+                _ => Err(anyhow!(
+                    "Expected while Bool {{ statements }}, found {:?}",
+                    tokens
+                )),
+            }
+        }
+        _ => Err(anyhow!(
+            "Expected while Bool {{ statements }}, found {:?}",
+            tokens
+        )),
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
     type Error = anyhow::Error;
     fn try_from(value: &[Token<'a>]) -> Result<Self> {
@@ -111,6 +180,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
             try_parse_output,
             try_parse_move,
             try_parse_assign,
+            try_parse_while,
         ];
         for try_match in try_matches {
             if let Ok(statement) = try_match(value) {
@@ -124,6 +194,16 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
 #[derive(Debug, PartialEq, Clone)]
 struct Bool<'a> {
     compares: Vec<Compare<'a>>,
+}
+
+impl Bool<'_> {
+    fn len(&self) -> usize {
+        if self.compares.is_empty() {
+            return 0;
+        } else {
+            3 + 4 * (self.compares.len() - 1)
+        }
+    }
 }
 
 impl<'a> TryFrom<&[Token<'a>]> for Bool<'a> {
@@ -237,7 +317,7 @@ const RESERVED_WORDS: [&str; 7] = [
     "output",
 ];
 
-pub fn parse(tokens: TokenStream) -> Result<AST> {
+pub fn parse(tokens: TokenStream) -> Result<Function<'_>> {
     todo!();
 }
 
@@ -423,6 +503,41 @@ mod parser {
                 Err(()),
             ),
         ];
+        test_all_cases_vec!(testcase, Statement);
+    }
+    #[test]
+    fn test_parse_while() {
+        let testcase = [
+            (
+                "while abc == 123 { input ( cde ) }",
+                Ok((
+                    vec![Compare::EQ(Variable("abc"), Num(123))],
+                    vec![Statement::Input(Variable("cde"))],
+                )),
+            ),
+            ("while abc == 123 input ( cde ) }", Err(())),
+            ("while { input ( cde ) }", Err(())),
+            (
+                "while abc == 123 && efg != 124 { input ( hij ) }",
+                Ok((
+                    vec![
+                        Compare::EQ(Variable("abc"), Num(123)),
+                        Compare::NE(Variable("efg"), Num(124)),
+                    ],
+                    vec![Statement::Input(Variable("hij"))],
+                )),
+            ),
+        ]
+        .into_iter()
+        .map(|(s, r)| {
+            let tokens = TokenStream::try_from(s).unwrap().into_tokens();
+            let expect = r.map(|(compares, statement)| {
+                Statement::WHILE(Bool { compares }, Function(statement))
+            });
+            (tokens, expect)
+        })
+        .collect::<Vec<_>>();
+
         test_all_cases_vec!(testcase, Statement);
     }
 }

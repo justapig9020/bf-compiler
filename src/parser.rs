@@ -65,7 +65,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Function<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Statement<'a> {
+pub enum Statement<'a> {
     IF(Bool<'a>, Function<'a>, Option<Function<'a>>),
     WHILE(Bool<'a>, Function<'a>),
     Assign(Variable<'a>, Num),
@@ -268,7 +268,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct Bool<'a> {
+pub struct Bool<'a> {
     compares: Vec<Compare<'a>>,
 }
 
@@ -313,7 +313,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Bool<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Compare<'a> {
+pub enum Compare<'a> {
     EQ(Variable<'a>, Num),
     NE(Variable<'a>, Num),
 }
@@ -335,7 +335,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Compare<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-struct Num(u8);
+pub struct Num(u8);
 
 impl<'a> TryFrom<&Token<'a>> for Num {
     type Error = anyhow::Error;
@@ -348,7 +348,7 @@ impl<'a> TryFrom<&Token<'a>> for Num {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct Variable<'a>(&'a str);
+pub struct Variable<'a>(&'a str);
 
 impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
     type Error = anyhow::Error;
@@ -364,7 +364,7 @@ impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum Direction {
+pub enum Direction {
     Left,
     Right,
 }
@@ -392,10 +392,6 @@ const RESERVED_WORDS: [&str; 7] = [
     "input",
     "output",
 ];
-
-pub fn parse(tokens: TokenStream) -> Result<Function<'_>> {
-    todo!();
-}
 
 #[cfg(test)]
 mod parser {

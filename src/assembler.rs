@@ -1,20 +1,35 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-pub struct Variable(String);
+#[derive(Debug, PartialEq, Clone)]
+pub struct Variable<'a>(&'a str);
+impl Variable<'_> {
+    pub fn new<'a>(name: &'a str) -> Variable<'a> {
+        Variable(name)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Value(u8);
-pub enum Asm {
-    Define(Variable, Value),
-    Add(Variable, Value),
-    Sub(Variable, Value),
-    Set(Variable, Value),
+impl Value {
+    pub fn new(val: u8) -> Value {
+        Value(val)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Asm<'a> {
+    Define(Variable<'a>, Value),
+    Add(Variable<'a>, Value),
+    Sub(Variable<'a>, Value),
+    Set(Variable<'a>, Value),
     Rs(Value),
     Ls(Value),
     Loop,
     End,
-    Copy(Variable, Vec<Variable>),
-    Read(Variable),
-    Write(Variable),
+    Copy(Variable<'a>, Vec<Variable<'a>>),
+    Read(Variable<'a>),
+    Write(Variable<'a>),
 }
 
 fn parse_copy(parts: &[&str]) -> Result<String> {

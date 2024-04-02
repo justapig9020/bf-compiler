@@ -53,10 +53,26 @@ fn try_parse_input<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
     }
 }
 
+fn try_parse_output<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    if tokens.len() < 4 {
+        return Err(anyhow!(
+            "Expected at least 4 tokens, found {:?}",
+            tokens.len()
+        ));
+    }
+    match &tokens[..4] {
+        [Token::ID("output"), Token::LP, variable, Token::RP] => {
+            let variable = Variable::try_from(variable)?;
+            Ok(Statement::Output(variable))
+        }
+        _ => Err(anyhow!("Expected input ( Variable ), found {:?}", tokens)),
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
     type Error = anyhow::Error;
     fn try_from(value: &[Token<'a>]) -> Result<Self> {
-        let try_matches = [try_parse_input];
+        let try_matches = [try_parse_input, try_parse_output];
         for try_match in try_matches {
             if let Ok(statement) = try_match(value) {
                 return Ok(statement);
@@ -321,6 +337,32 @@ mod parser {
             ),
             (
                 vec![Token::ID("input"), Token::LP, Token::NUM("123"), Token::RP],
+                Err(()),
+            ),
+        ];
+        for (tokens, expect) in testcase.into_iter() {
+            let output = Statement::try_from(&*tokens);
+            if let Ok(expect) = expect {
+                assert_eq!(output.unwrap(), expect);
+            } else {
+                assert!(output.is_err());
+            }
+        }
+    }
+    #[test]
+    fn test_parse_output() {
+        let testcase = [
+            (
+                vec![
+                    Token::ID("output"),
+                    Token::LP,
+                    Token::ID("hello"),
+                    Token::RP,
+                ],
+                Ok(Statement::Output(Variable("hello"))),
+            ),
+            (
+                vec![Token::ID("output"), Token::LP, Token::NUM("123"), Token::RP],
                 Err(()),
             ),
         ];

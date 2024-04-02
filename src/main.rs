@@ -1,4 +1,5 @@
 mod assembler;
+mod compile;
 mod parser;
 mod scanner;
 use crate::assembler::assemble;

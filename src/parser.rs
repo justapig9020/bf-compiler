@@ -6,41 +6,44 @@
 //
 // Semantic:
 // - Function: [Statement]*
-// - Statement: If | While | Assign | Move
+// - Statement: If | While | Assign | Move | Input | Output
 // - If: if Flag { Function } [else { Function }]!
 // - While: while Flag { Function }
-// - Assign: ID = NUMBER
+// - Assign: Variable = NUMBER
 // - Bool: Compare [&& Compare]*
 // - Compare: Equal | NotEqual
-// - Equal: ID == NUMBER
-// - NotEqual: ID != NUMBER
+// - Equal: Variable == NUMBER
+// - NotEqual: Variable != NUMBER
 // - Move: ID("move_right") | ID("move_left")
+// - Input: ID("input") ( Variable )
+// - Output: ID("output") ( Variable )
+// - Variable: ID
 
 use crate::scanner::{Token, TokenStream};
 use anyhow::{anyhow, Result};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 struct AST<'a> {
     function: Vec<Statement<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 enum Statement<'a> {
     IF(Bool<'a>, Vec<Statement<'a>>, Option<Vec<Statement<'a>>>),
     WHILE(Bool<'a>, Vec<Statement<'a>>),
-    Assign(Token<'a>, Token<'a>),
+    Assign(Variable<'a>, Num),
     Move(Direction),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 struct Bool<'a> {
     compares: Vec<Compare<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 enum Compare<'a> {
-    EQ(ID<'a>, u8),
-    NE(ID<'a>, u8),
+    EQ(Variable<'a>, u8),
+    NE(Variable<'a>, u8),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -57,9 +60,9 @@ impl<'a> TryFrom<Token<'a>> for Num {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct ID<'a>(&'a str);
+struct Variable<'a>(&'a str);
 
-impl<'a> TryFrom<Token<'a>> for ID<'a> {
+impl<'a> TryFrom<Token<'a>> for Variable<'a> {
     type Error = anyhow::Error;
     fn try_from(token: Token<'a>) -> Result<Self> {
         let Token::ID(id) = token else {
@@ -98,17 +101,6 @@ pub fn parse(tokens: TokenStream) -> Result<AST> {
 #[cfg(test)]
 mod parser {
     use super::*;
-    // Semantic:
-    // - Function: [Statement]*
-    // - Statement: If | While | Assign | Move
-    // - If: if Flag { Function } [else { Function }]!
-    // - While: while Flag { Function }
-    // - Assign: ID = NUMBER
-    // - Bool: Compare [&& Compare]*
-    // - Compare: Equal | NotEqual
-    // - Equal: ID == NUMBER
-    // - NotEqual: ID != NUMBER
-    // - Move: ID("move_right") | ID("move_left")
     #[test]
     fn test_parse_direction() {
         let testcase = [
@@ -126,13 +118,13 @@ mod parser {
         }
     }
     #[test]
-    fn test_parse_id() {
+    fn test_parse_variable() {
         let testcase = [
-            (Token::ID("hello"), Ok(ID("hello"))),
+            (Token::ID("hello"), Ok(Variable("hello"))),
             (Token::NUM("123"), Err(())),
         ];
         for (token, expect) in testcase.into_iter() {
-            let output = ID::try_from(token);
+            let output = Variable::try_from(token);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {

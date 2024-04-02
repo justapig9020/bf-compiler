@@ -244,6 +244,30 @@ pub fn parse(tokens: TokenStream) -> Result<AST> {
 #[cfg(test)]
 mod parser {
     use super::*;
+    macro_rules! test_all_cases {
+        ($testcases: expr, $type: ty) => {
+            for (token, expect) in $testcases.iter() {
+                let output = <$type>::try_from(token);
+                if let Ok(expect) = expect {
+                    assert_eq!(output.unwrap(), *expect);
+                } else {
+                    assert!(output.is_err());
+                }
+            }
+        };
+    }
+    macro_rules! test_all_cases_vec {
+        ($testcases: expr, $type: ty) => {
+            for (token, expect) in $testcases.iter() {
+                let output = <$type>::try_from(&**token);
+                if let Ok(expect) = expect {
+                    assert_eq!(output.unwrap(), *expect);
+                } else {
+                    assert!(output.is_err());
+                }
+            }
+        };
+    }
     #[test]
     fn test_parse_direction() {
         let testcase = [
@@ -251,14 +275,7 @@ mod parser {
             (Token::ID("move_left"), Ok(Direction::Left)),
             (Token::ID("abcd"), Err(())),
         ];
-        for (token, expect) in testcase.into_iter() {
-            let output = Direction::try_from(&token);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases!(testcase, Direction);
     }
 
     #[test]
@@ -271,15 +288,11 @@ mod parser {
             .iter()
             .map(|s| (Token::ID(s), Err(())))
             .collect();
-        let testcase = testcase.into_iter().chain(reserved_words.into_iter());
-        for (token, expect) in testcase {
-            let output = Variable::try_from(&token);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        let testcase = testcase
+            .iter()
+            .chain(reserved_words.iter())
+            .collect::<Vec<_>>();
+        test_all_cases!(testcase, Variable);
     }
     #[test]
     fn test_parse_num() {
@@ -287,14 +300,7 @@ mod parser {
             (Token::NUM("123"), Ok(Num(123))),
             (Token::ID("hello"), Err(())),
         ];
-        for (token, expect) in testcase.into_iter() {
-            let output = Num::try_from(&token);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases!(testcase, Num);
     }
     #[test]
     fn test_parse_compare() {
@@ -312,14 +318,7 @@ mod parser {
                 Ok(Compare::NE(Variable("hello"), Num(123))),
             ),
         ];
-        for (tokens, expect) in testcase.into_iter() {
-            let output = Compare::try_from(&*tokens);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Compare);
     }
     #[test]
     fn test_parse_bool() {
@@ -358,14 +357,7 @@ mod parser {
                 }),
             ),
         ];
-        for (tokens, expect) in testcase.into_iter() {
-            let output = Bool::try_from(&*tokens);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Bool);
     }
     #[test]
     fn test_parse_input() {
@@ -379,14 +371,7 @@ mod parser {
                 Err(()),
             ),
         ];
-        for (tokens, expect) in testcase.into_iter() {
-            let output = Statement::try_from(&*tokens);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Statement);
     }
     #[test]
     fn test_parse_output() {
@@ -405,14 +390,7 @@ mod parser {
                 Err(()),
             ),
         ];
-        for (tokens, expect) in testcase.into_iter() {
-            let output = Statement::try_from(&*tokens);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Statement);
     }
     #[test]
     fn test_parse_move_statement() {
@@ -427,14 +405,7 @@ mod parser {
             ),
             (vec![Token::ID("abcd")], Err(())),
         ];
-        for (token, expect) in testcase.into_iter() {
-            let output = Statement::try_from(&*token);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Statement);
     }
     #[test]
     fn test_parse_assign() {
@@ -452,13 +423,6 @@ mod parser {
                 Err(()),
             ),
         ];
-        for (tokens, expect) in testcase.into_iter() {
-            let output = Statement::try_from(&*tokens);
-            if let Ok(expect) = expect {
-                assert_eq!(output.unwrap(), expect);
-            } else {
-                assert!(output.is_err());
-            }
-        }
+        test_all_cases_vec!(testcase, Statement);
     }
 }

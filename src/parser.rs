@@ -7,8 +7,8 @@
 // Semantic:
 // - Function: [Statement]*
 // - Statement: If | While | Assign | Move | Input | Output
-// - If: if Flag { Function } [else { Function }]!
-// - While: while Flag { Function }
+// - If: if Bool { Function } [else { Function }]!
+// - While: while Bool { Function }
 // - Assign: Variable = NUMBER
 // - Bool: Compare [&& Compare]*
 // - Compare: Equal | NotEqual
@@ -37,6 +37,35 @@ enum Statement<'a> {
     Output(Variable<'a>),
 }
 
+fn try_parse_input<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    if tokens.len() < 4 {
+        return Err(anyhow!(
+            "Expected at least 4 tokens, found {:?}",
+            tokens.len()
+        ));
+    }
+    match &tokens[..4] {
+        [Token::ID("input"), Token::LP, variable, Token::RP] => {
+            let variable = Variable::try_from(variable)?;
+            Ok(Statement::Input(variable))
+        }
+        _ => Err(anyhow!("Expected input ( Variable ), found {:?}", tokens)),
+    }
+}
+
+impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
+    type Error = anyhow::Error;
+    fn try_from(value: &[Token<'a>]) -> Result<Self> {
+        let try_matches = [try_parse_input];
+        for try_match in try_matches {
+            if let Ok(statement) = try_match(value) {
+                return Ok(statement);
+            }
+        }
+        Err(anyhow!("No match found for {:?}", value))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 struct Bool<'a> {
     compares: Vec<Compare<'a>>,
@@ -44,7 +73,7 @@ struct Bool<'a> {
 
 impl<'a> TryFrom<&[Token<'a>]> for Bool<'a> {
     type Error = anyhow::Error;
-    fn try_from(value: &[Token<'a>]) -> std::prelude::v1::Result<Self, Self::Error> {
+    fn try_from(value: &[Token<'a>]) -> Result<Self> {
         if value.len() < 3 {
             return Err(anyhow!(
                 "Expected at least 3 tokens, found {:?}",
@@ -276,6 +305,27 @@ mod parser {
         ];
         for (tokens, expect) in testcase.into_iter() {
             let output = Bool::try_from(&*tokens);
+            if let Ok(expect) = expect {
+                assert_eq!(output.unwrap(), expect);
+            } else {
+                assert!(output.is_err());
+            }
+        }
+    }
+    #[test]
+    fn test_parse_input() {
+        let testcase = [
+            (
+                vec![Token::ID("input"), Token::LP, Token::ID("hello"), Token::RP],
+                Ok(Statement::Input(Variable("hello"))),
+            ),
+            (
+                vec![Token::ID("input"), Token::LP, Token::NUM("123"), Token::RP],
+                Err(()),
+            ),
+        ];
+        for (tokens, expect) in testcase.into_iter() {
+            let output = Statement::try_from(&*tokens);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {

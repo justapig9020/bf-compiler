@@ -26,6 +26,12 @@ use anyhow::{anyhow, Result};
 #[derive(Debug, PartialEq, Clone)]
 pub struct AST<'a>(Function<'a>);
 
+impl<'a> AST<'a> {
+    pub fn statements(&'a self) -> &'a [Statement<'a>] {
+        &self.0 .0
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for AST<'a> {
     type Error = anyhow::Error;
     fn try_from(tokens: &[Token<'a>]) -> std::prelude::v1::Result<Self, Self::Error> {
@@ -42,7 +48,7 @@ impl<'a> TryFrom<&[Token<'a>]> for AST<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function<'a>(Vec<Statement<'a>>);
 
-impl Function<'_> {
+impl<'a> Function<'a> {
     fn len(&self) -> usize {
         self.0.iter().map(Statement::len).sum()
     }
@@ -349,6 +355,13 @@ impl<'a> TryFrom<&Token<'a>> for Num {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Variable<'a>(&'a str);
+
+impl std::ops::Deref for Variable<'_> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
 
 impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
     type Error = anyhow::Error;

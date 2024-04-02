@@ -185,12 +185,12 @@ fn try_parse_if<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
             let rest = &rest[bools.len()..];
             match rest {
                 [Token::LB, statements @ ..] => {
-                    let statements = Function::try_from(statements)?;
-                    let consumed = statements.len() + 1; // +1 for LB
-                    if rest[consumed] != Token::RB {
-                        Err(anyhow!("Expected }}, found {:?}", rest[statements.len()]))
+                    let if_func = Function::try_from(statements)?;
+                    let last_token = &statements[if_func.len()];
+                    if *last_token != Token::RB {
+                        Err(anyhow!("Expected }}, found {:?}", last_token))
                     } else {
-                        Ok(Statement::IF(bools, statements, None))
+                        Ok(Statement::IF(bools, if_func, None))
                     }
                 }
                 _ => Err(anyhow!(
@@ -206,6 +206,30 @@ fn try_parse_if<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
     }
 }
 
+fn try_parse_else<'a>(tokens: &[Token<'a>]) -> Option<Function<'a>> {
+    match tokens {
+        [Token::ID("else"), Token::LB, statements @ ..] => {
+            let else_func = Function::try_from(statements).ok()?;
+            let last_token = &statements[else_func.len()];
+            if *last_token != Token::RB {
+                None
+            } else {
+                Some(else_func)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn try_parse_if_else<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    let if_statement = try_parse_if(tokens)?;
+    let else_func = try_parse_else(&tokens[if_statement.len()..]);
+    let Statement::IF(bools, if_func, _) = if_statement else {
+        panic!("Expected IF statement, found {:?}", if_statement)
+    };
+    Ok(Statement::IF(bools, if_func, else_func))
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
     type Error = anyhow::Error;
     fn try_from(value: &[Token<'a>]) -> Result<Self> {
@@ -215,7 +239,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
             try_parse_move,
             try_parse_assign,
             try_parse_while,
-            try_parse_if,
+            try_parse_if_else,
         ];
         for try_match in try_matches {
             if let Ok(statement) = try_match(value) {
@@ -592,6 +616,37 @@ mod parser {
             let tokens = TokenStream::try_from(s).unwrap().into_tokens();
             let expect = r.map(|(compares, statement)| {
                 Statement::IF(Bool { compares }, Function(statement), None)
+            });
+            (tokens, expect)
+        })
+        .collect::<Vec<_>>();
+        test_all_cases_vec!(testcase, Statement);
+    }
+    #[test]
+    fn test_parse_if_else() {
+        let testcase = [
+            (
+                "if abc == 123 { input ( cde ) } else { output ( fgh ) }",
+                Ok((
+                    vec![Compare::EQ(Variable("abc"), Num(123))],
+                    vec![Statement::Input(Variable("cde"))],
+                    vec![Statement::Output(Variable("fgh"))],
+                )),
+            ),
+            (
+                "if abc == 123 input ( cde ) } else output ( efg ) }",
+                Err(()),
+            ),
+        ]
+        .into_iter()
+        .map(|(s, r)| {
+            let tokens = TokenStream::try_from(s).unwrap().into_tokens();
+            let expect = r.map(|(compares, statement_if, statement_else)| {
+                Statement::IF(
+                    Bool { compares },
+                    Function(statement_if),
+                    Some(Function(statement_else)),
+                )
             });
             (tokens, expect)
         })

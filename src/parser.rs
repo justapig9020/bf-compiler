@@ -5,6 +5,7 @@
 // - PC: prev_cell
 //
 // Semantic:
+// - AST: Function EOF
 // - Function: [Statement]*
 // - Statement: If | While | Assign | Move | Input | Output
 // - If: if Bool { Function } [else { Function }]!
@@ -21,6 +22,22 @@
 
 use crate::scanner::{Token, TokenStream};
 use anyhow::{anyhow, Result};
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct AST<'a>(Function<'a>);
+
+impl<'a> TryFrom<&[Token<'a>]> for AST<'a> {
+    type Error = anyhow::Error;
+    fn try_from(tokens: &[Token<'a>]) -> std::prelude::v1::Result<Self, Self::Error> {
+        let function = Function::try_from(tokens)?;
+        let last_token = &tokens[function.len()];
+        if *last_token != Token::EOF {
+            Err(anyhow!("Expected EOF, found {:?}", last_token))
+        } else {
+            Ok(AST(function))
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function<'a>(Vec<Statement<'a>>);
@@ -652,5 +669,66 @@ mod parser {
         })
         .collect::<Vec<_>>();
         test_all_cases_vec!(testcase, Statement);
+    }
+    #[test]
+    fn test_parse_ast() {
+        let testcase: Vec<(_, Result<AST>)> = vec![(
+            "
+while state != 0 {
+    if state == 1 {
+        if symbol == 0 {
+            symbol = 1
+            move_left
+            state = 0
+        } else {
+            if symbol == 1 {
+                symbol = 0
+                move_right
+                state = 0
+            }
+        }
+    }
+",
+            Ok(AST(Function(vec![Statement::WHILE(
+                Bool {
+                    compares: vec![Compare::NE(Variable("state"), Num(0))],
+                },
+                Function(vec![Statement::IF(
+                    Bool {
+                        compares: vec![Compare::EQ(Variable("state"), Num(1))],
+                    },
+                    Function(vec![Statement::IF(
+                        Bool {
+                            compares: vec![Compare::EQ(Variable("symbol"), Num(0))],
+                        },
+                        Function(vec![
+                            Statement::Assign(Variable("symbol"), Num(1)),
+                            Statement::Move(Direction::Left),
+                            Statement::Assign(Variable("state"), Num(0)),
+                        ]),
+                        Some(Function(vec![Statement::IF(
+                            Bool {
+                                compares: vec![Compare::EQ(Variable("symbol"), Num(1))],
+                            },
+                            Function(vec![
+                                Statement::Assign(Variable("symbol"), Num(0)),
+                                Statement::Move(Direction::Right),
+                                Statement::Assign(Variable("state"), Num(0)),
+                            ]),
+                            None,
+                        )])),
+                    )]),
+                    None,
+                )]),
+            )]))),
+        )]
+        .into_iter()
+        .map(|(s, expect)| {
+            let tokens = TokenStream::try_from(s).unwrap().into_tokens();
+            (tokens, expect)
+        })
+        .collect::<Vec<_>>();
+
+        test_all_cases_vec!(testcase, AST);
     }
 }

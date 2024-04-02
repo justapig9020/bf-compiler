@@ -33,6 +33,8 @@ enum Statement<'a> {
     WHILE(Bool<'a>, Vec<Statement<'a>>),
     Assign(Variable<'a>, Num),
     Move(Direction),
+    Input(Variable<'a>),
+    Output(Variable<'a>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,8 +44,8 @@ struct Bool<'a> {
 
 #[derive(Debug, PartialEq, Clone)]
 enum Compare<'a> {
-    EQ(Variable<'a>, u8),
-    NE(Variable<'a>, u8),
+    EQ(Variable<'a>, Num),
+    NE(Variable<'a>, Num),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -68,6 +70,9 @@ impl<'a> TryFrom<Token<'a>> for Variable<'a> {
         let Token::ID(id) = token else {
             return Err(anyhow!("Expected ID, found {:?}", token));
         };
+        if RESERVED_WORDS.contains(&id) {
+            return Err(anyhow!("{} is a reserved word", id));
+        }
         Ok(Self(id))
     }
 }
@@ -92,7 +97,15 @@ impl TryFrom<Token<'_>> for Direction {
     }
 }
 
-const RESERVED_WORDS: [&str; 5] = ["if", "else", "while", "next_cell", "prev_cell"];
+const RESERVED_WORDS: [&str; 7] = [
+    "if",
+    "else",
+    "while",
+    "next_cell",
+    "prev_cell",
+    "input",
+    "output",
+];
 
 pub fn parse(tokens: TokenStream) -> Result<AST> {
     todo!();
@@ -117,13 +130,19 @@ mod parser {
             }
         }
     }
+
     #[test]
     fn test_parse_variable() {
         let testcase = [
             (Token::ID("hello"), Ok(Variable("hello"))),
             (Token::NUM("123"), Err(())),
         ];
-        for (token, expect) in testcase.into_iter() {
+        let reserved_words: Vec<(Token, Result<Variable, ()>)> = RESERVED_WORDS
+            .iter()
+            .map(|s| (Token::ID(s), Err(())))
+            .collect();
+        let testcase = testcase.into_iter().chain(reserved_words.into_iter());
+        for (token, expect) in testcase {
             let output = Variable::try_from(token);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);

@@ -70,8 +70,11 @@ fn try_parse_output<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
 }
 
 fn try_parse_move<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
-    if tokens.len() != 1 {
-        return Err(anyhow!("Expected 1 token, found {:?}", tokens.len()));
+    if tokens.len() < 1 {
+        return Err(anyhow!(
+            "Expected at least 1 token, found {:?}",
+            tokens.len()
+        ));
     }
     match &tokens[0] {
         Token::ID("move_right") => Ok(Statement::Move(Direction::Right)),
@@ -83,10 +86,32 @@ fn try_parse_move<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
     }
 }
 
+fn try_parse_assign<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    if tokens.len() < 3 {
+        return Err(anyhow!(
+            "Expected at least 3 tokens, found {:?}",
+            tokens.len()
+        ));
+    }
+    match &tokens[..3] {
+        [id, Token::ASSIGN, num] => {
+            let variable = Variable::try_from(id)?;
+            let num = Num::try_from(num)?;
+            Ok(Statement::Assign(variable, num))
+        }
+        _ => Err(anyhow!("Expected Variable = NUMBER, found {:?}", tokens)),
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
     type Error = anyhow::Error;
     fn try_from(value: &[Token<'a>]) -> Result<Self> {
-        let try_matches = [try_parse_input, try_parse_output, try_parse_move];
+        let try_matches = [
+            try_parse_input,
+            try_parse_output,
+            try_parse_move,
+            try_parse_assign,
+        ];
         for try_match in try_matches {
             if let Ok(statement) = try_match(value) {
                 return Ok(statement);
@@ -404,6 +429,31 @@ mod parser {
         ];
         for (token, expect) in testcase.into_iter() {
             let output = Statement::try_from(&*token);
+            if let Ok(expect) = expect {
+                assert_eq!(output.unwrap(), expect);
+            } else {
+                assert!(output.is_err());
+            }
+        }
+    }
+    #[test]
+    fn test_parse_assign() {
+        let testcase = [
+            (
+                vec![Token::ID("hello"), Token::ASSIGN, Token::NUM("123")],
+                Ok(Statement::Assign(Variable("hello"), Num(123))),
+            ),
+            (
+                vec![Token::NUM("123"), Token::ASSIGN, Token::ID("hello")],
+                Err(()),
+            ),
+            (
+                vec![Token::ID("Hello"), Token::ASSIGN, Token::ID("hello")],
+                Err(()),
+            ),
+        ];
+        for (tokens, expect) in testcase.into_iter() {
+            let output = Statement::try_from(&*tokens);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {

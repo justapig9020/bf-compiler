@@ -82,7 +82,6 @@ impl<'a> TryFrom<&'a str> for TokenStream<'a> {
             .split_whitespace()
             .map(|token| {
                 let token = Token::try_from(token);
-                println!("{:?}", token);
                 token
             })
             .chain(std::iter::once(Ok(Token::EOF)))

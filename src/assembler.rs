@@ -1,6 +1,22 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
+pub struct Variable(String);
+pub struct Value(u8);
+pub enum Asm {
+    Define(Variable, Value),
+    Add(Variable, Value),
+    Sub(Variable, Value),
+    Set(Variable, Value),
+    Rs(Value),
+    Ls(Value),
+    Loop,
+    End,
+    Copy(Variable, Vec<Variable>),
+    Read(Variable),
+    Write(Variable),
+}
+
 fn parse_copy(parts: &[&str]) -> Result<String> {
     let src = parts[0].parse::<usize>()?;
     let mut inner = String::new();

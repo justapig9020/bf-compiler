@@ -42,10 +42,56 @@ struct Bool<'a> {
     compares: Vec<Compare<'a>>,
 }
 
+impl<'a> TryFrom<&[Token<'a>]> for Bool<'a> {
+    type Error = anyhow::Error;
+    fn try_from(value: &[Token<'a>]) -> std::prelude::v1::Result<Self, Self::Error> {
+        if value.len() < 3 {
+            return Err(anyhow!(
+                "Expected at least 3 tokens, found {:?}",
+                value.len()
+            ));
+        }
+        let (first_compare, rest_compares) = value.split_at(3);
+        let Ok(compare) = Compare::try_from(first_compare) else {
+            return Err(anyhow!("Expected a compare, found {:?}", first_compare));
+        };
+        let mut compares = vec![compare];
+        let mut rest_compares = rest_compares.chunks_exact(4);
+        loop {
+            match rest_compares.next() {
+                Some([Token::AND, compare @ ..]) => {
+                    let Ok(compare) = Compare::try_from(compare) else {
+                        break;
+                    };
+                    compares.push(compare);
+                }
+                _ => break,
+            }
+        }
+        Ok(Self { compares })
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 enum Compare<'a> {
     EQ(Variable<'a>, Num),
     NE(Variable<'a>, Num),
+}
+
+impl<'a> TryFrom<&[Token<'a>]> for Compare<'a> {
+    type Error = anyhow::Error;
+    fn try_from(tokens: &[Token<'a>]) -> Result<Self> {
+        if tokens.len() < 3 {
+            return Err(anyhow!("Expected at least 3 tokens, found {:?}", tokens));
+        }
+        let variable = Variable::try_from(&tokens[0])?;
+        let num = Num::try_from(&tokens[2])?;
+        match tokens[1] {
+            Token::EQ => Ok(Self::EQ(variable, num)),
+            Token::NE => Ok(Self::NE(variable, num)),
+            _ => Err(anyhow!("Expected == or !=, found {:?}", tokens[1])),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -159,6 +205,77 @@ mod parser {
         ];
         for (token, expect) in testcase.into_iter() {
             let output = Num::try_from(&token);
+            if let Ok(expect) = expect {
+                assert_eq!(output.unwrap(), expect);
+            } else {
+                assert!(output.is_err());
+            }
+        }
+    }
+    #[test]
+    fn test_parse_compare() {
+        let testcase = [
+            (
+                vec![Token::ID("hello"), Token::EQ, Token::NUM("123")],
+                Ok(Compare::EQ(Variable("hello"), Num(123))),
+            ),
+            (
+                vec![Token::NUM("123"), Token::EQ, Token::ID("hello")],
+                Err(()),
+            ),
+            (
+                vec![Token::ID("hello"), Token::NE, Token::NUM("123")],
+                Ok(Compare::NE(Variable("hello"), Num(123))),
+            ),
+        ];
+        for (tokens, expect) in testcase.into_iter() {
+            let output = Compare::try_from(&*tokens);
+            if let Ok(expect) = expect {
+                assert_eq!(output.unwrap(), expect);
+            } else {
+                assert!(output.is_err());
+            }
+        }
+    }
+    #[test]
+    fn test_parse_bool() {
+        let testcase = [
+            (
+                vec![Token::ID("hello"), Token::EQ, Token::NUM("123")],
+                Ok(Bool {
+                    compares: vec![Compare::EQ(Variable("hello"), Num(123))],
+                }),
+            ),
+            (
+                vec![Token::ID("hello"), Token::EQ, Token::NUM("123"), Token::LB],
+                Ok(Bool {
+                    compares: vec![Compare::EQ(Variable("hello"), Num(123))],
+                }),
+            ),
+            (
+                vec![Token::ID("hello"), Token::EQ, Token::ID("123")],
+                Err(()),
+            ),
+            (
+                vec![
+                    Token::ID("hello"),
+                    Token::EQ,
+                    Token::NUM("123"),
+                    Token::AND,
+                    Token::ID("world"),
+                    Token::EQ,
+                    Token::NUM("124"),
+                ],
+                Ok(Bool {
+                    compares: vec![
+                        Compare::EQ(Variable("hello"), Num(123)),
+                        Compare::EQ(Variable("world"), Num(124)),
+                    ],
+                }),
+            ),
+        ];
+        for (tokens, expect) in testcase.into_iter() {
+            let output = Bool::try_from(&*tokens);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {

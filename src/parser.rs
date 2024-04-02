@@ -51,9 +51,9 @@ enum Compare<'a> {
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct Num(u8);
 
-impl<'a> TryFrom<Token<'a>> for Num {
+impl<'a> TryFrom<&Token<'a>> for Num {
     type Error = anyhow::Error;
-    fn try_from(token: Token<'a>) -> Result<Self> {
+    fn try_from(token: &Token<'a>) -> Result<Self> {
         let Token::NUM(num) = token else {
             return Err(anyhow!("Expected NUM, found {:?}", token));
         };
@@ -64,9 +64,9 @@ impl<'a> TryFrom<Token<'a>> for Num {
 #[derive(Debug, PartialEq, Clone)]
 struct Variable<'a>(&'a str);
 
-impl<'a> TryFrom<Token<'a>> for Variable<'a> {
+impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
     type Error = anyhow::Error;
-    fn try_from(token: Token<'a>) -> Result<Self> {
+    fn try_from(token: &Token<'a>) -> Result<Self> {
         let Token::ID(id) = token else {
             return Err(anyhow!("Expected ID, found {:?}", token));
         };
@@ -83,13 +83,13 @@ enum Direction {
     Right,
 }
 
-impl TryFrom<Token<'_>> for Direction {
+impl TryFrom<&Token<'_>> for Direction {
     type Error = anyhow::Error;
-    fn try_from(token: Token<'_>) -> Result<Self> {
+    fn try_from(token: &Token<'_>) -> Result<Self> {
         let Token::ID(id) = token else {
             return Err(anyhow!("Expected ID, found {:?}", token));
         };
-        match id {
+        match *id {
             "move_right" => Ok(Self::Right),
             "move_left" => Ok(Self::Left),
             _ => Err(anyhow!("Expected move_right or move_left, found {}", id)),
@@ -122,7 +122,7 @@ mod parser {
             (Token::ID("abcd"), Err(())),
         ];
         for (token, expect) in testcase.into_iter() {
-            let output = Direction::try_from(token);
+            let output = Direction::try_from(&token);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {
@@ -143,7 +143,7 @@ mod parser {
             .collect();
         let testcase = testcase.into_iter().chain(reserved_words.into_iter());
         for (token, expect) in testcase {
-            let output = Variable::try_from(token);
+            let output = Variable::try_from(&token);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {
@@ -158,7 +158,7 @@ mod parser {
             (Token::ID("hello"), Err(())),
         ];
         for (token, expect) in testcase.into_iter() {
-            let output = Num::try_from(token);
+            let output = Num::try_from(&token);
             if let Ok(expect) = expect {
                 assert_eq!(output.unwrap(), expect);
             } else {

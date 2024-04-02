@@ -10,6 +10,8 @@ pub enum Token<'a> {
     NE,
     LB,
     RB,
+    LP,
+    RP,
     AND,
     EOF,
 }
@@ -60,6 +62,8 @@ impl<'a> TryFrom<&'a str> for Token<'a> {
             match_str!("!=", Token::NE),
             match_str!("{", Token::LB),
             match_str!("}", Token::RB),
+            match_str!("(", Token::LP),
+            match_str!(")", Token::RP),
             match_str!("&&", Token::AND),
         ];
         for func in match_func.iter() {
@@ -163,6 +167,20 @@ mod token {
         assert_eq!(output, expect);
     }
     #[test]
+    fn test_lp() {
+        let program = "(";
+        let expect = Token::LP;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
+    fn test_rp() {
+        let program = ")";
+        let expect = Token::RP;
+        let output = Token::try_from(program).unwrap();
+        assert_eq!(output, expect);
+    }
+    #[test]
     fn test_and() {
         let program = "&&";
         let expect = Token::AND;
@@ -174,6 +192,7 @@ mod token {
         let program = "
             if hello != 123 && world == 456 {
                 abc = 789
+                input ( efg )
             }";
         let expect = vec![
             Token::ID("if"),
@@ -188,6 +207,10 @@ mod token {
             Token::ID("abc"),
             Token::ASSIGN,
             Token::NUM("789"),
+            Token::ID("input"),
+            Token::LP,
+            Token::ID("efg"),
+            Token::RP,
             Token::RB,
             Token::EOF,
         ];

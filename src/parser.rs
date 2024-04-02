@@ -172,6 +172,40 @@ fn try_parse_while<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
     }
 }
 
+fn try_parse_if<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
+    if tokens.len() < 6 {
+        return Err(anyhow!(
+            "Expected at least 6 tokens, found {:?}",
+            tokens.len()
+        ));
+    }
+    match &tokens {
+        [Token::ID("if"), rest @ ..] => {
+            let bools = Bool::try_from(rest)?;
+            let rest = &rest[bools.len()..];
+            match rest {
+                [Token::LB, statements @ ..] => {
+                    let statements = Function::try_from(statements)?;
+                    let consumed = statements.len() + 1; // +1 for LB
+                    if rest[consumed] != Token::RB {
+                        Err(anyhow!("Expected }}, found {:?}", rest[statements.len()]))
+                    } else {
+                        Ok(Statement::IF(bools, statements, None))
+                    }
+                }
+                _ => Err(anyhow!(
+                    "Expected while Bool {{ statements }}, found {:?}",
+                    tokens
+                )),
+            }
+        }
+        _ => Err(anyhow!(
+            "Expected while Bool {{ statements }}, found {:?}",
+            tokens
+        )),
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
     type Error = anyhow::Error;
     fn try_from(value: &[Token<'a>]) -> Result<Self> {
@@ -181,6 +215,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
             try_parse_move,
             try_parse_assign,
             try_parse_while,
+            try_parse_if,
         ];
         for try_match in try_matches {
             if let Ok(statement) = try_match(value) {
@@ -538,6 +573,29 @@ mod parser {
         })
         .collect::<Vec<_>>();
 
+        test_all_cases_vec!(testcase, Statement);
+    }
+    #[test]
+    fn test_parse_if() {
+        let testcase = [
+            (
+                "if abc == 123 { input ( cde ) }",
+                Ok((
+                    vec![Compare::EQ(Variable("abc"), Num(123))],
+                    vec![Statement::Input(Variable("cde"))],
+                )),
+            ),
+            ("if abc == 123 input ( cde ) }", Err(())),
+        ]
+        .into_iter()
+        .map(|(s, r)| {
+            let tokens = TokenStream::try_from(s).unwrap().into_tokens();
+            let expect = r.map(|(compares, statement)| {
+                Statement::IF(Bool { compares }, Function(statement), None)
+            });
+            (tokens, expect)
+        })
+        .collect::<Vec<_>>();
         test_all_cases_vec!(testcase, Statement);
     }
 }

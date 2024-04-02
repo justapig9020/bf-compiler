@@ -1,5 +1,6 @@
 mod assembler;
-mod compile;
+mod compiler;
+mod generator;
 mod parser;
 mod scanner;
 use crate::assembler::assemble;

@@ -12,10 +12,17 @@ impl Variable {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Value(u8);
+pub enum Value {
+    Num(u8),
+    Const(String),
+}
+
 impl Value {
-    pub fn new(val: u8) -> Value {
-        Value(val)
+    pub fn new_num(val: u8) -> Value {
+        Value::Num(val)
+    }
+    pub fn new_const(val: &str) -> Value {
+        Value::Const(val.to_owned())
     }
 }
 

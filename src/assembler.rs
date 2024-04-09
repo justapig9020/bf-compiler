@@ -1,11 +1,13 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
+// TODO: The Variable might be able to hold &str instead of String
 #[derive(Debug, PartialEq, Clone)]
-pub struct Variable<'a>(&'a str);
-impl Variable<'_> {
-    pub fn new<'a>(name: &'a str) -> Variable<'a> {
-        Variable(name)
+pub struct Variable(String);
+
+impl Variable {
+    pub fn new(name: &str) -> Variable {
+        Variable(name.to_owned())
     }
 }
 
@@ -18,18 +20,18 @@ impl Value {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Asm<'a> {
-    Define(Variable<'a>, Value),
-    Add(Variable<'a>, Value),
-    Sub(Variable<'a>, Value),
-    Set(Variable<'a>, Value),
+pub enum Asm {
+    Define(Variable, Value),
+    Add(Variable, Value),
+    Sub(Variable, Value),
+    Set(Variable, Value),
     Rs(Value),
     Ls(Value),
     Loop,
     End,
-    Copy(Variable<'a>, Vec<Variable<'a>>),
-    Read(Variable<'a>),
-    Write(Variable<'a>),
+    Copy(Variable, Vec<Variable>),
+    Read(Variable),
+    Write(Variable),
 }
 
 fn parse_copy(parts: &[&str]) -> Result<String> {

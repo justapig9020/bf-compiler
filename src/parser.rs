@@ -343,6 +343,12 @@ impl<'a> TryFrom<&[Token<'a>]> for Compare<'a> {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Num(u8);
 
+impl Into<u8> for &Num {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
 impl<'a> TryFrom<&Token<'a>> for Num {
     type Error = anyhow::Error;
     fn try_from(token: &Token<'a>) -> Result<Self> {

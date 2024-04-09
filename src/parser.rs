@@ -28,7 +28,7 @@ pub struct AST<'a>(Function<'a>);
 
 impl<'a> AST<'a> {
     pub fn statements(&'a self) -> &'a [Statement<'a>] {
-        &self.0 .0
+        &self.0.statements()
     }
 }
 
@@ -51,6 +51,9 @@ pub struct Function<'a>(Vec<Statement<'a>>);
 impl<'a> Function<'a> {
     fn len(&self) -> usize {
         self.0.iter().map(Statement::len).sum()
+    }
+    pub fn statements(&'a self) -> &'a [Statement<'a>] {
+        &self.0
     }
 }
 

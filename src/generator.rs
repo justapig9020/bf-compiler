@@ -1,6 +1,7 @@
 use crate::assembler::{Asm, Value, Variable};
-use crate::parser::{Direction, Statement, AST};
+use crate::parser::{Bool, Direction, Statement, AST};
 use anyhow::{anyhow, Result};
+use std::collections::HashSet;
 
 impl From<AST<'_>> for Vec<Asm> {
     fn from(ast: AST) -> Self {
@@ -21,12 +22,54 @@ impl From<&Statement<'_>> for Asm {
                 Direction::Right => Asm::Rs(Value::new_const("__cell_size")),
                 Direction::Left => Asm::Ls(Value::new_const("__cell_size")),
             },
+            Statement::WHILE(condition, func) => todo!(),
             _ => todo!(),
         }
     }
 }
 
+fn list_variables_bool(b: &Bool) -> HashSet<String> {
+    todo!();
+}
+
+fn list_variables_statement(stmt: &Statement) -> HashSet<String> {
+    match stmt {
+        Statement::Input(var) => HashSet::from([var.to_string()]),
+        Statement::Output(var) => HashSet::from([var.to_string()]),
+        Statement::Assign(var, _) => HashSet::from([var.to_string()]),
+        Statement::WHILE(cond, stmt) => {
+            let mut variables = list_variables_bool(cond);
+            for stmt in stmt.statements() {
+                variables.extend(list_variables_statement(stmt));
+            }
+            variables
+        }
+        Statement::IF(cond, if_func, else_func) => {
+            let mut variables = list_variables_bool(cond);
+            for stmt in if_func.statements() {
+                variables.extend(list_variables_statement(stmt));
+            }
+            if let Some(else_func) = else_func {
+                for stmt in else_func.statements() {
+                    variables.extend(list_variables_statement(stmt));
+                }
+            }
+            variables
+        }
+        Statement::Move(_) => HashSet::new(),
+    }
+}
+
+fn list_variables(ast: &AST) -> HashSet<String> {
+    let mut variables = HashSet::new();
+    for stmt in ast.statements() {
+        variables.extend(list_variables_statement(stmt));
+    }
+    variables
+}
+
 pub fn code_gen(ast: &AST) -> Result<String> {
+    let variables = list_variables(ast);
     todo!();
 }
 
@@ -40,6 +83,23 @@ mod generator {
         let ast = AST::try_from(&*tokens)?;
         let asm = Vec::<Asm>::from(ast);
         Ok(asm.clone())
+    }
+    #[test]
+    fn test_list_pure_variables() {
+        let testcases = [
+            ("input ( x )", HashSet::from(["x"])),
+            (
+                "output ( y )\nx = 1\noutput ( x )",
+                HashSet::from(["y", "x"]),
+            ),
+        ];
+        for (program, expect) in testcases {
+            let tokens = TokenStream::try_from(program).unwrap();
+            let ast = AST::try_from(&*tokens.into_tokens()).unwrap();
+            let variables = list_variables(&ast);
+            let expect: HashSet<String> = expect.iter().map(|s| s.to_string()).collect();
+            assert_eq!(variables, expect);
+        }
     }
     #[test]
     fn test_input() {
@@ -75,5 +135,9 @@ mod generator {
         let asm = compile(program).unwrap();
         let expect = vec![Asm::Ls(Value::new_const("__cell_size"))];
         assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_while() {
+        let program = "input ( x )\nwhile ( x ) { move_right }";
     }
 }

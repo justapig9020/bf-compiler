@@ -29,29 +29,44 @@ impl From<&Statement<'_>> for Asm {
 }
 
 fn list_variables_bool(b: &Bool) -> HashSet<String> {
-    todo!();
+    b.compares()
+        .iter()
+        .map(|c| {
+            use crate::parser::Compare;
+            match c {
+                Compare::EQ(var, _) => var.to_string(),
+                Compare::NE(var, _) => var.to_string(),
+            }
+        })
+        .collect()
 }
 
-fn list_variables_statement(stmt: &Statement) -> HashSet<String> {
+fn list_variables_statement(
+    stmt: &Statement,
+    if_level: usize,
+    while_level: usize,
+) -> HashSet<String> {
     match stmt {
         Statement::Input(var) => HashSet::from([var.to_string()]),
         Statement::Output(var) => HashSet::from([var.to_string()]),
         Statement::Assign(var, _) => HashSet::from([var.to_string()]),
         Statement::WHILE(cond, stmt) => {
-            let mut variables = list_variables_bool(cond);
+            let mut variables = HashSet::from([format!("__while_{}", while_level)]);
+            variables.extend(list_variables_bool(cond));
             for stmt in stmt.statements() {
-                variables.extend(list_variables_statement(stmt));
+                variables.extend(list_variables_statement(stmt, if_level, while_level + 1))
             }
             variables
         }
         Statement::IF(cond, if_func, else_func) => {
-            let mut variables = list_variables_bool(cond);
+            let mut variables = HashSet::from([format!("__if_{}", if_level)]);
+            variables.extend(list_variables_bool(cond));
             for stmt in if_func.statements() {
-                variables.extend(list_variables_statement(stmt));
+                variables.extend(list_variables_statement(stmt, if_level + 1, while_level))
             }
             if let Some(else_func) = else_func {
                 for stmt in else_func.statements() {
-                    variables.extend(list_variables_statement(stmt));
+                    variables.extend(list_variables_statement(stmt, if_level, while_level));
                 }
             }
             variables
@@ -63,7 +78,7 @@ fn list_variables_statement(stmt: &Statement) -> HashSet<String> {
 fn list_variables(ast: &AST) -> HashSet<String> {
     let mut variables = HashSet::new();
     for stmt in ast.statements() {
-        variables.extend(list_variables_statement(stmt));
+        variables.extend(list_variables_statement(stmt, 0, 0));
     }
     variables
 }
@@ -84,6 +99,17 @@ mod generator {
         let asm = Vec::<Asm>::from(ast);
         Ok(asm.clone())
     }
+    fn test_list_variables(testcases: &[(&str, HashSet<&str>)]) {
+        for (program, expect) in testcases {
+            println!("{program:?}");
+            let tokens = TokenStream::try_from(*program).unwrap();
+            println!("{tokens:?}");
+            let ast = AST::try_from(&*tokens.into_tokens()).unwrap();
+            let variables = list_variables(&ast);
+            let expect: HashSet<String> = expect.iter().map(|s| s.to_string()).collect();
+            assert_eq!(variables, expect);
+        }
+    }
     #[test]
     fn test_list_pure_variables() {
         let testcases = [
@@ -93,13 +119,37 @@ mod generator {
                 HashSet::from(["y", "x"]),
             ),
         ];
-        for (program, expect) in testcases {
-            let tokens = TokenStream::try_from(program).unwrap();
-            let ast = AST::try_from(&*tokens.into_tokens()).unwrap();
-            let variables = list_variables(&ast);
-            let expect: HashSet<String> = expect.iter().map(|s| s.to_string()).collect();
-            assert_eq!(variables, expect);
-        }
+        test_list_variables(&testcases);
+    }
+    #[test]
+    fn test_list_if_variables() {
+        let testcases = [
+            (
+                "if  x == 1 { input ( y ) }",
+                HashSet::from(["x", "y", "__if_0"]),
+            ),
+            (
+                "if x == 1 {
+                    if y == 1 {
+                        input ( y )
+                    }
+                } else {
+                    input ( z )
+                }",
+                HashSet::from(["x", "y", "z", "__if_0", "__if_1"]),
+            ),
+            (
+                "if x == 1 {
+                    input ( y ) 
+                } else { 
+                    if y == 1 { 
+                        input ( z ) 
+                    } 
+                }",
+                HashSet::from(["x", "y", "z", "__if_0"]),
+            ),
+        ];
+        test_list_variables(&testcases);
     }
     #[test]
     fn test_input() {

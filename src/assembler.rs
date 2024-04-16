@@ -34,8 +34,8 @@ pub enum Asm {
     Set(Variable, Value),
     Rs(Value),
     Ls(Value),
-    Loop,
-    End,
+    Loop(Variable),
+    End(Variable),
     Copy(Variable, Vec<Variable>),
     Read(Variable),
     Write(Variable),
@@ -119,8 +119,16 @@ pub fn assemble(asm: &str) -> Result<String> {
             }
             "rs" => ">".repeat(parts[1].parse::<usize>()?),
             "ls" => "<".repeat(parts[1].parse::<usize>()?),
-            "loop" => "[".to_string(),
-            "end" => "]".to_string(),
+            "loop" => format!(
+                "{}[{}",
+                ">".repeat(parts[1].parse::<usize>()?),
+                "<".repeat(parts[1].parse::<usize>()?)
+            ),
+            "end" => format!(
+                "{}]{}",
+                ">".repeat(parts[1].parse::<usize>()?),
+                "<".repeat(parts[1].parse::<usize>()?)
+            ),
             "copy" => parse_copy(&parts[1..])?,
             "read" => {
                 let var = parts[1].parse::<usize>()?;
@@ -194,8 +202,8 @@ mod asm {
     }
     #[test]
     fn test_loop() {
-        let asm = "loop\nls 3\nend";
-        let expect = "[<<<]";
+        let asm = "#define a 1\nloop a\nls 3\nend a";
+        let expect = ">[<<<<>]<";
         let ooutput = assemble(asm).unwrap();
         assert_eq!(ooutput, expect);
     }

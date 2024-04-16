@@ -87,7 +87,7 @@ impl Statement<'_> {
     fn len(&self) -> usize {
         match self {
             Self::IF(bool, if_func, else_func) => {
-                3 + bool.len() + if_func.len() + else_func.as_ref().map_or(0, |f| 2 + f.len())
+                3 + bool.len() + if_func.len() + else_func.as_ref().map_or(0, |f| 3 + f.len())
             }
             Self::WHILE(bool, func) => 3 + bool.len() + func.len(),
             Self::Assign(_, _) => 3,
@@ -284,10 +284,13 @@ pub struct Bool<'a> {
 impl Bool<'_> {
     fn len(&self) -> usize {
         if self.compares.is_empty() {
-            return 0;
+            0
         } else {
             3 + 4 * (self.compares.len() - 1)
         }
+    }
+    pub fn compares(&'_ self) -> &'_ [Compare<'_>] {
+        &self.compares
     }
 }
 
@@ -706,6 +709,7 @@ while state != 0 {
             }
         }
     }
+}
 ",
             Ok(AST(Function(vec![Statement::WHILE(
                 Bool {

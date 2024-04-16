@@ -16,6 +16,7 @@ pub enum Token<'a> {
     EOF,
 }
 
+#[derive(Debug)]
 pub struct TokenStream<'a> {
     tokens: Vec<Token<'a>>,
 }

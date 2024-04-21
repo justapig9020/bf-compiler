@@ -7,6 +7,7 @@ const TEMP_VAR: &str = "tmp";
 const IF_FLAG: &str = "IF";
 const ELSE_FLAG: &str = "ELSE";
 const IS_EQ: &str = "IS_EQ";
+const WHILE_FLAG: &str = "WHILE";
 
 impl From<AST<'_>> for Vec<Asm> {
     fn from(ast: AST) -> Self {
@@ -92,12 +93,13 @@ fn generate_if_else(
     condition: &Bool,
     func_if: &Function,
     func_else: &Option<Function>,
+    flag: Vec<(&str, u8)>,
 ) -> Vec<Asm> {
     let func_if = statements_to_asm(func_if.statements());
     let flag = if func_else.is_some() {
-        vec![(ELSE_FLAG, 0)]
+        [flag, vec![(ELSE_FLAG, 0)]].concat()
     } else {
-        vec![]
+        flag
     };
     let setup_asm = if func_else.is_some() {
         vec![Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1))]
@@ -114,6 +116,18 @@ fn generate_if_else(
     [setup_asm, if_asm, else_asm].concat()
 }
 
+fn generate_while(condition: &Bool, func: &Function) -> Vec<Asm> {
+    [
+        vec![
+            Asm::Set(Variable::new(WHILE_FLAG), Value::new_num(1)),
+            Asm::Loop(Variable::new(WHILE_FLAG)),
+            Asm::Set(Variable::new(WHILE_FLAG), Value::new_num(0)),
+        ],
+        generate_if_else(condition, func, &None, vec![(WHILE_FLAG, 1)]),
+        vec![Asm::End(Variable::new(WHILE_FLAG))],
+    ]
+    .concat()
+}
 impl From<&Statement<'_>> for Vec<Asm> {
     fn from(stmt: &Statement) -> Self {
         match stmt {
@@ -126,9 +140,9 @@ impl From<&Statement<'_>> for Vec<Asm> {
                 Direction::Right => vec![Asm::Rs(Value::new_const("__cell_size"))],
                 Direction::Left => vec![Asm::Ls(Value::new_const("__cell_size"))],
             },
-            Statement::WHILE(condition, func) => todo!(),
+            Statement::WHILE(condition, func) => generate_while(condition, func),
             Statement::IF(condition, func_if, func_else) => {
-                generate_if_else(condition, func_if, func_else)
+                generate_if_else(condition, func_if, func_else, vec![])
             }
         }
     }
@@ -523,6 +537,29 @@ mod generator {
             Asm::Read(Variable::new("y")),
             Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
             Asm::End(Variable::new(ELSE_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_single_condition_while() {
+        let program = "while a != 10 { input ( x ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(WHILE_FLAG), Value::new_num(1)),
+            Asm::Loop(Variable::new(WHILE_FLAG)),
+            Asm::Set(Variable::new(WHILE_FLAG), Value::new_num(0)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(WHILE_FLAG), Value::new_num(1)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::End(Variable::new(WHILE_FLAG)),
         ];
         assert_eq!(asm, expect);
     }

@@ -19,16 +19,44 @@ impl From<AST<'_>> for Vec<Asm> {
 
 fn generate_if_else_inner(
     conditions: &[Compare],
-    func_if: Option<&Function>,
+    func_if: &Function,
     func_else: Option<&Function>,
 ) -> Vec<Asm> {
-    let asm_if = match conditions {
+    match conditions {
         [first, rest @ ..] => match first {
-            Compare::EQ(var, num) => {
-                let mut conditions = vec![Compare::NE(var.clone(), num.clone())];
-                conditions.extend_from_slice(rest);
-                return generate_if_else_inner(&conditions, func_else, func_if);
-            }
+            Compare::EQ(var, num) => [
+                vec![
+                    Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+                    Asm::Copy(
+                        Variable::new(var),
+                        vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+                    ),
+                    Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new(var)]),
+                    Asm::Sub(Variable::new(IF_FLAG), Value::new_num(num.into())),
+                    Asm::Loop(Variable::new(IF_FLAG)),
+                ],
+                if let Some(func) = func_else {
+                    func.statements()
+                        .into_iter()
+                        .map(|stmt| Vec::<Asm>::from(stmt))
+                        .flatten()
+                        .collect()
+                } else {
+                    vec![]
+                },
+                vec![
+                    Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+                    Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+                    Asm::End(Variable::new(IF_FLAG)),
+                    Asm::Loop(Variable::new(ELSE_FLAG)),
+                ],
+                generate_if_else_inner(rest, func_if, None),
+                vec![
+                    Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+                    Asm::End(Variable::new(ELSE_FLAG)),
+                ],
+            ]
+            .concat(),
             Compare::NE(var, num) => [
                 vec![
                     Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
@@ -41,43 +69,38 @@ fn generate_if_else_inner(
                     Asm::Loop(Variable::new(IF_FLAG)),
                 ],
                 generate_if_else_inner(rest, func_if, None),
-                vec![Asm::End(Variable::new(IF_FLAG))],
+                vec![
+                    Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+                    Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+                    Asm::End(Variable::new(IF_FLAG)),
+                ],
+                if let Some(func) = func_else {
+                    [
+                        vec![Asm::Loop(Variable::new(ELSE_FLAG))],
+                        func.statements()
+                            .into_iter()
+                            .map(|stmt| Vec::<Asm>::from(stmt))
+                            .flatten()
+                            .collect(),
+                        vec![
+                            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+                            Asm::End(Variable::new(ELSE_FLAG)),
+                        ],
+                    ]
+                    .concat()
+                } else {
+                    vec![]
+                },
             ]
             .concat(),
         },
-        [] => [
-            if let Some(func) = func_if {
-                func.statements()
-                    .into_iter()
-                    .map(|stmt| Vec::<Asm>::from(stmt))
-                    .flatten()
-                    .collect()
-            } else {
-                vec![]
-            },
-            vec![Asm::Set(Variable::new(IF_FLAG), Value::new_num(0))],
-            vec![Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0))],
-        ]
-        .concat(),
-    };
-    let asm_else = if let Some(func) = func_else {
-        [
-            vec![Asm::Loop(Variable::new(ELSE_FLAG))],
-            func.statements()
-                .into_iter()
-                .map(|stmt| Vec::<Asm>::from(stmt))
-                .flatten()
-                .collect(),
-            vec![
-                Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
-                Asm::End(Variable::new(ELSE_FLAG)),
-            ],
-        ]
-        .concat()
-    } else {
-        vec![]
-    };
-    [asm_if, asm_else].concat()
+        [] => func_if
+            .statements()
+            .into_iter()
+            .map(|stmt| Vec::<Asm>::from(stmt))
+            .flatten()
+            .collect(),
+    }
 }
 
 fn generate_if_else(
@@ -85,7 +108,7 @@ fn generate_if_else(
     func_if: &Function,
     func_else: &Option<Function>,
 ) -> Vec<Asm> {
-    generate_if_else_inner(condition.compares(), Some(func_if), func_else.as_ref())
+    generate_if_else_inner(condition.compares(), func_if, func_else.as_ref())
 }
 
 impl From<&Statement<'_>> for Vec<Asm> {
@@ -352,6 +375,40 @@ mod generator {
             Asm::End(Variable::new(IF_FLAG)),
             Asm::Loop(Variable::new(ELSE_FLAG)),
             Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(ELSE_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_multi_condition_if() {
+        let program = "if a == 10 && b != 11 { input ( x ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Loop(Variable::new(ELSE_FLAG)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("b"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("b")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(11)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
             Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
             Asm::End(Variable::new(ELSE_FLAG)),
         ];

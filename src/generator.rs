@@ -58,58 +58,33 @@ fn generate_flag_setup(setups: Vec<(&str, u8)>) -> Vec<Asm> {
         .collect()
 }
 
-fn generate_if_else_inner(
-    conditions: &[Compare],
-    func_if: Vec<Asm>,
-    func_else: Option<Vec<Asm>>,
-) -> Vec<Asm> {
-    match (conditions, func_else) {
-        ([Compare::NE(var, val)], Some(func_else)) => [
-            generate_flag_setup(vec![(ELSE_FLAG, 1)]),
+fn generate_if(conditions: &[Compare], func_if: Vec<Asm>, flag: Vec<(&str, u8)>) -> Vec<Asm> {
+    match conditions {
+        [Compare::NE(var, val)] => [
             generate_set_ne(var, val, IF_FLAG),
-            generate_if_flag(IF_FLAG, func_if, vec![(ELSE_FLAG, 0)]),
-            generate_if_flag(ELSE_FLAG, func_else, vec![]),
+            generate_if_flag(IF_FLAG, func_if, flag),
         ]
         .concat(),
-        ([Compare::EQ(var, val)], Some(func_else)) => [
-            generate_flag_setup(vec![(ELSE_FLAG, 1), (IS_EQ, 1)]),
-            generate_set_ne(var, val, IF_FLAG),
-            generate_if_flag(IF_FLAG, vec![], vec![(IS_EQ, 0)]),
-            generate_if_flag(IS_EQ, func_if, vec![(ELSE_FLAG, 0)]),
-            generate_if_flag(ELSE_FLAG, func_else, vec![]),
-        ]
-        .concat(),
-        ([Compare::NE(var, val)], None) => [
-            generate_set_ne(var, val, IF_FLAG),
-            generate_if_flag(IF_FLAG, func_if, vec![]),
-        ]
-        .concat(),
-        ([Compare::EQ(var, val)], None) => [
+        [Compare::EQ(var, val)] => [
             generate_flag_setup(vec![(IS_EQ, 1)]),
             generate_set_ne(var, val, IF_FLAG),
             generate_if_flag(IF_FLAG, vec![], vec![(IS_EQ, 0)]),
-            generate_if_flag(IS_EQ, func_if, vec![]),
+            generate_if_flag(IS_EQ, func_if, flag),
         ]
         .concat(),
-        ([Compare::NE(var, val), rest @ ..], Some(func_else)) => {
-            todo!();
-        }
-        ([Compare::EQ(var, val), rest @ ..], Some(func_else)) => {
-            todo!();
-        }
-        ([Compare::NE(var, val), rest @ ..], None) => [
+        [Compare::NE(var, val), rest @ ..] => [
             generate_set_ne(var, val, IF_FLAG),
-            generate_if_flag(IF_FLAG, generate_if_else_inner(rest, func_if, None), vec![]),
+            generate_if_flag(IF_FLAG, generate_if(rest, func_if, flag), vec![]),
         ]
         .concat(),
-        ([Compare::EQ(var, val), rest @ ..], None) => [
+        [Compare::EQ(var, val), rest @ ..] => [
             generate_flag_setup(vec![(IS_EQ, 1)]),
             generate_set_ne(var, val, IF_FLAG),
             generate_if_flag(IF_FLAG, vec![], vec![(IS_EQ, 0)]),
-            generate_if_flag(IS_EQ, generate_if_else_inner(rest, func_if, None), vec![]),
+            generate_if_flag(IS_EQ, generate_if(rest, func_if, flag), vec![]),
         ]
         .concat(),
-        ([], _) => vec![],
+        [] => vec![],
     }
 }
 
@@ -119,10 +94,24 @@ fn generate_if_else(
     func_else: &Option<Function>,
 ) -> Vec<Asm> {
     let func_if = statements_to_asm(func_if.statements());
-    let func_else = func_else
-        .as_ref()
-        .map(|f| statements_to_asm(f.statements()));
-    generate_if_else_inner(condition.compares(), func_if, func_else)
+    let flag = if func_else.is_some() {
+        vec![(ELSE_FLAG, 0)]
+    } else {
+        vec![]
+    };
+    let setup_asm = if func_else.is_some() {
+        vec![Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1))]
+    } else {
+        vec![]
+    };
+    let if_asm = generate_if(condition.compares(), func_if, flag);
+    let else_asm = if let Some(func_else) = func_else {
+        let else_asm = statements_to_asm(func_else.statements());
+        generate_if_flag(ELSE_FLAG, else_asm, vec![])
+    } else {
+        vec![]
+    };
+    [setup_asm, if_asm, else_asm].concat()
 }
 
 impl From<&Statement<'_>> for Vec<Asm> {
@@ -458,6 +447,44 @@ mod generator {
             Asm::End(Variable::new(IS_EQ)),
             Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
             Asm::End(Variable::new(IF_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_multi_condition_if_else() {
+        let program = "if a == 10 && b != 11 { input ( x ) } else { input ( y ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(0)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Loop(Variable::new(IS_EQ)),
+            Asm::Copy(
+                Variable::new("b"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("b")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(11)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(0)),
+            Asm::End(Variable::new(IS_EQ)),
+            Asm::Loop(Variable::new(ELSE_FLAG)),
+            Asm::Read(Variable::new("y")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(ELSE_FLAG)),
         ];
         assert_eq!(asm, expect);
     }

@@ -451,7 +451,7 @@ mod generator {
         assert_eq!(asm, expect);
     }
     #[test]
-    fn test_multi_condition_if_else() {
+    fn test_multi_condition_if_else_eq() {
         let program = "if a == 10 && b != 11 { input ( x ) } else { input ( y ) }";
         let asm = compile(program).unwrap();
         let expect = vec![
@@ -481,6 +481,44 @@ mod generator {
             Asm::End(Variable::new(IF_FLAG)),
             Asm::Set(Variable::new(IS_EQ), Value::new_num(0)),
             Asm::End(Variable::new(IS_EQ)),
+            Asm::Loop(Variable::new(ELSE_FLAG)),
+            Asm::Read(Variable::new("y")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(ELSE_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_multi_condition_if_else_ne() {
+        let program = "if a != 10 && b == 11 { input ( x ) } else { input ( y ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("b"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("b")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(11)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(0)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Loop(Variable::new(IS_EQ)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(IS_EQ), Value::new_num(0)),
+            Asm::End(Variable::new(IS_EQ)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
             Asm::Loop(Variable::new(ELSE_FLAG)),
             Asm::Read(Variable::new("y")),
             Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),

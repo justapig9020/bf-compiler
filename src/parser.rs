@@ -26,6 +26,12 @@ use anyhow::{anyhow, Result};
 #[derive(Debug, PartialEq, Clone)]
 pub struct AST<'a>(Function<'a>);
 
+impl<'a> AST<'a> {
+    pub fn statements(&'a self) -> &'a [Statement<'a>] {
+        &self.0.statements()
+    }
+}
+
 impl<'a> TryFrom<&[Token<'a>]> for AST<'a> {
     type Error = anyhow::Error;
     fn try_from(tokens: &[Token<'a>]) -> std::prelude::v1::Result<Self, Self::Error> {
@@ -42,9 +48,12 @@ impl<'a> TryFrom<&[Token<'a>]> for AST<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function<'a>(Vec<Statement<'a>>);
 
-impl Function<'_> {
+impl<'a> Function<'a> {
     fn len(&self) -> usize {
         self.0.iter().map(Statement::len).sum()
+    }
+    pub fn statements(&'a self) -> &'a [Statement<'a>] {
+        &self.0
     }
 }
 
@@ -65,7 +74,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Function<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Statement<'a> {
+pub enum Statement<'a> {
     IF(Bool<'a>, Function<'a>, Option<Function<'a>>),
     WHILE(Bool<'a>, Function<'a>),
     Assign(Variable<'a>, Num),
@@ -78,7 +87,7 @@ impl Statement<'_> {
     fn len(&self) -> usize {
         match self {
             Self::IF(bool, if_func, else_func) => {
-                3 + bool.len() + if_func.len() + else_func.as_ref().map_or(0, |f| 2 + f.len())
+                3 + bool.len() + if_func.len() + else_func.as_ref().map_or(0, |f| 3 + f.len())
             }
             Self::WHILE(bool, func) => 3 + bool.len() + func.len(),
             Self::Assign(_, _) => 3,
@@ -268,17 +277,20 @@ impl<'a> TryFrom<&[Token<'a>]> for Statement<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct Bool<'a> {
+pub struct Bool<'a> {
     compares: Vec<Compare<'a>>,
 }
 
 impl Bool<'_> {
     fn len(&self) -> usize {
         if self.compares.is_empty() {
-            return 0;
+            0
         } else {
             3 + 4 * (self.compares.len() - 1)
         }
+    }
+    pub fn compares(&'_ self) -> &'_ [Compare<'_>] {
+        &self.compares
     }
 }
 
@@ -313,7 +325,7 @@ impl<'a> TryFrom<&[Token<'a>]> for Bool<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Compare<'a> {
+pub enum Compare<'a> {
     EQ(Variable<'a>, Num),
     NE(Variable<'a>, Num),
 }
@@ -335,7 +347,13 @@ impl<'a> TryFrom<&[Token<'a>]> for Compare<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-struct Num(u8);
+pub struct Num(u8);
+
+impl Into<u8> for &Num {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
 
 impl<'a> TryFrom<&Token<'a>> for Num {
     type Error = anyhow::Error;
@@ -348,7 +366,14 @@ impl<'a> TryFrom<&Token<'a>> for Num {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct Variable<'a>(&'a str);
+pub struct Variable<'a>(&'a str);
+
+impl std::ops::Deref for Variable<'_> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
 
 impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
     type Error = anyhow::Error;
@@ -364,7 +389,7 @@ impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum Direction {
+pub enum Direction {
     Left,
     Right,
 }
@@ -392,10 +417,6 @@ const RESERVED_WORDS: [&str; 7] = [
     "input",
     "output",
 ];
-
-pub fn parse(tokens: TokenStream) -> Result<Function<'_>> {
-    todo!();
-}
 
 #[cfg(test)]
 mod parser {
@@ -688,6 +709,7 @@ while state != 0 {
             }
         }
     }
+}
 ",
             Ok(AST(Function(vec![Statement::WHILE(
                 Bool {

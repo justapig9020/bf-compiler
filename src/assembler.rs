@@ -1,5 +1,45 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
+
+// TODO: The Variable might be able to hold &str instead of String
+#[derive(Debug, PartialEq, Clone)]
+pub struct Variable(String);
+
+impl Variable {
+    pub fn new(name: &str) -> Variable {
+        Variable(name.to_owned())
+    }
+}
+
+impl Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    Num(u8),
+    Const(String),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Num(val) => write!(f, "{}", val),
+            Value::Const(val) => write!(f, "{}", val),
+        }
+    }
+}
+
+impl Value {
+    pub fn new_num(val: u8) -> Value {
+        Value::Num(val)
+    }
+    pub fn new_const(val: &str) -> Value {
+        Value::Const(val.to_owned())
+    }
+}
 
 fn parse_copy(parts: &[&str]) -> Result<String> {
     let src = parts[0].parse::<usize>()?;
@@ -79,8 +119,16 @@ pub fn assemble(asm: &str) -> Result<String> {
             }
             "rs" => ">".repeat(parts[1].parse::<usize>()?),
             "ls" => "<".repeat(parts[1].parse::<usize>()?),
-            "loop" => "[".to_string(),
-            "end" => "]".to_string(),
+            "loop" => format!(
+                "{}[{}",
+                ">".repeat(parts[1].parse::<usize>()?),
+                "<".repeat(parts[1].parse::<usize>()?)
+            ),
+            "end" => format!(
+                "{}]{}",
+                ">".repeat(parts[1].parse::<usize>()?),
+                "<".repeat(parts[1].parse::<usize>()?)
+            ),
             "copy" => parse_copy(&parts[1..])?,
             "read" => {
                 let var = parts[1].parse::<usize>()?;
@@ -154,8 +202,8 @@ mod asm {
     }
     #[test]
     fn test_loop() {
-        let asm = "loop\nls 3\nend";
-        let expect = "[<<<]";
+        let asm = "#define a 1\nloop a\nls 3\nend a";
+        let expect = ">[<<<<>]<";
         let ooutput = assemble(asm).unwrap();
         assert_eq!(ooutput, expect);
     }

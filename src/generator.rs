@@ -27,7 +27,7 @@ fn generate_if_else_inner(
             Compare::EQ(var, num) => {
                 let mut conditions = vec![Compare::NE(var.clone(), num.clone())];
                 conditions.extend_from_slice(rest);
-                generate_if_else_inner(&conditions, func_else, func_if)
+                return generate_if_else_inner(&conditions, func_else, func_if);
             }
             Compare::NE(var, num) => [
                 vec![
@@ -299,6 +299,54 @@ mod generator {
             Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
             Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
             Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Loop(Variable::new(ELSE_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(ELSE_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_single_ne_condition_if_else() {
+        let program = "if a != 10 { input ( x ) } else { input ( y ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+            Asm::Loop(Variable::new(ELSE_FLAG)),
+            Asm::Read(Variable::new("y")),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(ELSE_FLAG)),
+        ];
+        assert_eq!(asm, expect);
+    }
+    #[test]
+    fn test_single_eq_condition_if_else() {
+        let program = "if a == 10 { input ( x ) } else { input ( y ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("y")),
             Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
             Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
             Asm::End(Variable::new(IF_FLAG)),

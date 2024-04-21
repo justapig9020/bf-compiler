@@ -44,7 +44,7 @@ impl Display for Asm {
                     .map(|v| v.to_string())
                     .collect::<Vec<String>>()
                     .join(" ");
-                write!(f, "copy {} {:?}", var, vars)
+                write!(f, "copy {} {}", var, vars)
             }
             Read(var) => write!(f, "read {}", var),
             Write(var) => write!(f, "write {}", var),
@@ -287,9 +287,7 @@ mod generator {
     }
     fn test_list_variables(testcases: &[(&str, HashSet<&str>)]) {
         for (program, expect) in testcases {
-            println!("{program:?}");
             let tokens = TokenStream::try_from(*program).unwrap();
-            println!("{tokens:?}");
             let ast = AST::try_from(&*tokens.into_tokens()).unwrap();
             let variables = list_variables(&ast);
             let expect: HashSet<String> = expect.iter().map(|s| s.to_string()).collect();

@@ -1,29 +1,83 @@
 use crate::assembler::{Asm, Value, Variable};
-use crate::parser::{Bool, Direction, Statement, AST};
+use crate::parser::{Bool, Compare, Direction, Function, Statement, AST};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
+
+const TEMP_VAR: &str = "tmp";
+const IF_FLAG: &str = "IF";
+const ELSE_FLAG: &str = "ELSE";
 
 impl From<AST<'_>> for Vec<Asm> {
     fn from(ast: AST) -> Self {
         ast.statements()
             .into_iter()
-            .map(|stmt| stmt.into())
+            .map(|stmt| Vec::<Asm>::from(stmt))
+            .flatten()
             .collect()
     }
 }
 
-impl From<&Statement<'_>> for Asm {
+fn generate_if_body(func: &Function) -> Vec<Asm> {
+    [
+        func.statements()
+            .into_iter()
+            .map(|stmt| Vec::<Asm>::from(stmt))
+            .flatten()
+            .collect(),
+        vec![
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+        ],
+    ]
+    .concat()
+}
+
+fn generate_if_else(
+    conditions: &[Compare],
+    func_if: &Function,
+    func_else: Option<&Function>,
+) -> Vec<Asm> {
+    match conditions {
+        [first, rest @ ..] => match first {
+            Compare::EQ(_var, _num) => {
+                todo!();
+            }
+            Compare::NE(var, num) => [
+                vec![
+                    Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+                    Asm::Copy(
+                        Variable::new(var),
+                        vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+                    ),
+                    Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new(var)]),
+                    Asm::Sub(Variable::new(IF_FLAG), Value::new_num(num.into())),
+                    Asm::Loop(Variable::new(IF_FLAG)),
+                ],
+                generate_if_else(rest, func_if, None),
+                vec![Asm::End(Variable::new(IF_FLAG))],
+            ]
+            .concat(),
+        },
+        [] => generate_if_body(func_if),
+    }
+}
+
+impl From<&Statement<'_>> for Vec<Asm> {
     fn from(stmt: &Statement) -> Self {
         match stmt {
-            Statement::Input(var) => Asm::Read(Variable::new(var)),
-            Statement::Output(var) => Asm::Write(Variable::new(var)),
-            Statement::Assign(var, val) => Asm::Set(Variable::new(var), Value::new_num(val.into())),
+            Statement::Input(var) => vec![Asm::Read(Variable::new(var))],
+            Statement::Output(var) => vec![Asm::Write(Variable::new(var))],
+            Statement::Assign(var, val) => {
+                vec![Asm::Set(Variable::new(var), Value::new_num(val.into()))]
+            }
             Statement::Move(direction) => match direction {
-                Direction::Right => Asm::Rs(Value::new_const("__cell_size")),
-                Direction::Left => Asm::Ls(Value::new_const("__cell_size")),
+                Direction::Right => vec![Asm::Rs(Value::new_const("__cell_size"))],
+                Direction::Left => vec![Asm::Ls(Value::new_const("__cell_size"))],
             },
             Statement::WHILE(condition, func) => todo!(),
-            _ => todo!(),
+            Statement::IF(condition, func_if, func_else) => {
+                generate_if_else(condition.compares(), func_if, func_else.as_ref())
+            }
         }
     }
 }
@@ -91,7 +145,7 @@ pub fn code_gen(ast: &AST) -> Result<String> {
 #[cfg(test)]
 mod generator {
     use super::*;
-    use crate::scanner::TokenStream;
+    use crate::{assembler::Variable, scanner::TokenStream};
     fn compile(program: &str) -> Result<Vec<Asm>> {
         let tokens = TokenStream::try_from(program)?;
         let tokens = tokens.into_tokens();
@@ -187,7 +241,23 @@ mod generator {
         assert_eq!(asm, expect);
     }
     #[test]
-    fn test_while() {
-        let program = "input ( x )\nwhile ( x ) { move_right }";
+    fn test_single_ne_condition_if() {
+        let program = "if a != 10 { input ( x ) }";
+        let asm = compile(program).unwrap();
+        let expect = vec![
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(1)),
+            Asm::Copy(
+                Variable::new("a"),
+                vec![Variable::new(TEMP_VAR), Variable::new(IF_FLAG)],
+            ),
+            Asm::Copy(Variable::new(TEMP_VAR), vec![Variable::new("a")]),
+            Asm::Sub(Variable::new(IF_FLAG), Value::new_num(10)),
+            Asm::Loop(Variable::new(IF_FLAG)),
+            Asm::Read(Variable::new("x")),
+            Asm::Set(Variable::new(IF_FLAG), Value::new_num(0)),
+            Asm::Set(Variable::new(ELSE_FLAG), Value::new_num(0)),
+            Asm::End(Variable::new(IF_FLAG)),
+        ];
+        assert_eq!(asm, expect);
     }
 }

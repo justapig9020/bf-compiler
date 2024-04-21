@@ -1,16 +1,59 @@
-use crate::assembler::{Asm, Value, Variable};
+use crate::assembler::{Value, Variable};
 use crate::parser::{self, Bool, Compare, Direction, Function, Statement, AST};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
+use std::fmt::Display;
 
 const TEMP_VAR: &str = "tmp";
 const IF_FLAG: &str = "IF";
 const ELSE_FLAG: &str = "ELSE";
 const IS_EQ: &str = "IS_EQ";
 const WHILE_FLAG: &str = "WHILE";
+const RESERVED_VARIABLES: [&str; 5] = [TEMP_VAR, IF_FLAG, ELSE_FLAG, IS_EQ, WHILE_FLAG];
 
-impl From<AST<'_>> for Vec<Asm> {
-    fn from(ast: AST) -> Self {
+#[derive(Debug, PartialEq, Clone)]
+pub enum Asm {
+    Define(Variable, Value),
+    Add(Variable, Value),
+    Sub(Variable, Value),
+    Set(Variable, Value),
+    Rs(Value),
+    Ls(Value),
+    Loop(Variable),
+    End(Variable),
+    Copy(Variable, Vec<Variable>),
+    Read(Variable),
+    Write(Variable),
+}
+
+impl Display for Asm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Asm::*;
+        match self {
+            Define(var, val) => write!(f, "#define {} {}", var, val),
+            Add(var, val) => write!(f, "add {} {}", var, val),
+            Sub(var, val) => write!(f, "sub {} {}", var, val),
+            Set(var, val) => write!(f, "set {} {}", var, val),
+            Rs(val) => write!(f, "rs {}", val),
+            Ls(val) => write!(f, "ls {}", val),
+            Loop(var) => write!(f, "loop {}", var),
+            End(var) => write!(f, "end {}", var),
+            Copy(var, vars) => {
+                let vars = vars
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                write!(f, "copy {} {:?}", var, vars)
+            }
+            Read(var) => write!(f, "read {}", var),
+            Write(var) => write!(f, "write {}", var),
+        }
+    }
+}
+
+impl From<&AST<'_>> for Vec<Asm> {
+    fn from(ast: &AST) -> Self {
         statements_to_asm(ast.statements())
     }
 }
@@ -171,16 +214,14 @@ fn list_variables_statement(
         Statement::Output(var) => HashSet::from([var.to_string()]),
         Statement::Assign(var, _) => HashSet::from([var.to_string()]),
         Statement::WHILE(cond, stmt) => {
-            let mut variables = HashSet::from([format!("__while_{}", while_level)]);
-            variables.extend(list_variables_bool(cond));
+            let mut variables = list_variables_bool(cond);
             for stmt in stmt.statements() {
                 variables.extend(list_variables_statement(stmt, if_level, while_level + 1))
             }
             variables
         }
         Statement::IF(cond, if_func, else_func) => {
-            let mut variables = HashSet::from([format!("__if_{}", if_level)]);
-            variables.extend(list_variables_bool(cond));
+            let mut variables = list_variables_bool(cond);
             for stmt in if_func.statements() {
                 variables.extend(list_variables_statement(stmt, if_level + 1, while_level))
             }
@@ -203,9 +244,34 @@ fn list_variables(ast: &AST) -> HashSet<String> {
     variables
 }
 
+fn check_reserved_variables(variables: &HashSet<String>) -> Result<()> {
+    for var in RESERVED_VARIABLES.iter() {
+        if variables.contains(*var) {
+            return Err(anyhow!("Reserved variable name found: {}", var));
+        }
+    }
+    Ok(())
+}
+
 pub fn code_gen(ast: &AST) -> Result<String> {
-    let variables = list_variables(ast);
-    todo!();
+    let variables = list_variables(&ast);
+    check_reserved_variables(&variables)?;
+    let mut variables = variables.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+    variables.extend_from_slice(&RESERVED_VARIABLES);
+    let variable_define = variables
+        .iter()
+        .enumerate()
+        .map(|(i, s)| format!("#define {} {}", s, i))
+        .collect::<Vec<String>>()
+        .join("\n");
+    let cell_size = format!("#define __cell_size {}", variables.len());
+    let asm = Vec::<Asm>::from(ast);
+    let asm = asm
+        .iter()
+        .map(|a| a.to_string())
+        .collect::<Vec<String>>()
+        .join("\n");
+    Ok(format!("{}\n{}\n{}", variable_define, cell_size, asm))
 }
 
 #[cfg(test)]
@@ -216,7 +282,7 @@ mod generator {
         let tokens = TokenStream::try_from(program)?;
         let tokens = tokens.into_tokens();
         let ast = AST::try_from(&*tokens)?;
-        let asm = Vec::<Asm>::from(ast);
+        let asm = Vec::<Asm>::from(&ast);
         Ok(asm.clone())
     }
     fn test_list_variables(testcases: &[(&str, HashSet<&str>)]) {
@@ -244,10 +310,7 @@ mod generator {
     #[test]
     fn test_list_if_variables() {
         let testcases = [
-            (
-                "if  x == 1 { input ( y ) }",
-                HashSet::from(["x", "y", "__if_0"]),
-            ),
+            ("if  x == 1 { input ( y ) }", HashSet::from(["x", "y"])),
             (
                 "if x == 1 {
                     if y == 1 {
@@ -256,7 +319,7 @@ mod generator {
                 } else {
                     input ( z )
                 }",
-                HashSet::from(["x", "y", "z", "__if_0", "__if_1"]),
+                HashSet::from(["x", "y", "z"]),
             ),
             (
                 "if x == 1 {
@@ -266,7 +329,7 @@ mod generator {
                         input ( z ) 
                     } 
                 }",
-                HashSet::from(["x", "y", "z", "__if_0"]),
+                HashSet::from(["x", "y", "z"]),
             ),
         ];
         test_list_variables(&testcases);
@@ -541,7 +604,7 @@ mod generator {
         assert_eq!(asm, expect);
     }
     #[test]
-    fn test_single_condition_while() {
+    fn test_while() {
         let program = "while a != 10 { input ( x ) }";
         let asm = compile(program).unwrap();
         let expect = vec![

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 // TODO: The Variable might be able to hold &str instead of String
 #[derive(Debug, PartialEq, Clone)]
@@ -11,10 +11,25 @@ impl Variable {
     }
 }
 
+impl Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     Num(u8),
     Const(String),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Num(val) => write!(f, "{}", val),
+            Value::Const(val) => write!(f, "{}", val),
+        }
+    }
 }
 
 impl Value {
@@ -24,21 +39,6 @@ impl Value {
     pub fn new_const(val: &str) -> Value {
         Value::Const(val.to_owned())
     }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Asm {
-    Define(Variable, Value),
-    Add(Variable, Value),
-    Sub(Variable, Value),
-    Set(Variable, Value),
-    Rs(Value),
-    Ls(Value),
-    Loop(Variable),
-    End(Variable),
-    Copy(Variable, Vec<Variable>),
-    Read(Variable),
-    Write(Variable),
 }
 
 fn parse_copy(parts: &[&str]) -> Result<String> {

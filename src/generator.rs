@@ -59,11 +59,7 @@ impl From<&AST<'_>> for Vec<Asm> {
 }
 
 fn statements_to_asm(statements: &[Statement]) -> Vec<Asm> {
-    statements
-        .iter()
-        .map(|stmt| Vec::<Asm>::from(stmt))
-        .flatten()
-        .collect()
+    statements.iter().flat_map(Vec::<Asm>::from).collect()
 }
 
 fn generate_set_ne(var: &parser::Variable, val: &parser::Num, flag: &str) -> Vec<Asm> {
@@ -194,12 +190,9 @@ impl From<&Statement<'_>> for Vec<Asm> {
 fn list_variables_bool(b: &Bool) -> HashSet<String> {
     b.compares()
         .iter()
-        .map(|c| {
-            use crate::parser::Compare;
-            match c {
-                Compare::EQ(var, _) => var.to_string(),
-                Compare::NE(var, _) => var.to_string(),
-            }
+        .map(|c| match c {
+            Compare::EQ(var, _) => var.to_string(),
+            Compare::NE(var, _) => var.to_string(),
         })
         .collect()
 }
@@ -254,7 +247,7 @@ fn check_reserved_variables(variables: &HashSet<String>) -> Result<()> {
 }
 
 pub fn code_gen(ast: &AST) -> Result<String> {
-    let variables = list_variables(&ast);
+    let variables = list_variables(ast);
     check_reserved_variables(&variables)?;
     let mut variables = variables.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
     variables.extend_from_slice(&RESERVED_VARIABLES);

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use regex;
+
 
 #[derive(Debug, PartialEq)]
 pub enum Token<'a> {
@@ -82,8 +82,8 @@ impl<'a> TryFrom<&'a str> for TokenStream<'a> {
         let tokens = program
             .split_whitespace()
             .map(|token| {
-                let token = Token::try_from(token);
-                token
+                
+                Token::try_from(token)
             })
             .chain(std::iter::once(Ok(Token::EOF)))
             .collect::<Result<Vec<Token>>>()?;

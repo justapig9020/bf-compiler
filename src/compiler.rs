@@ -1,7 +1,7 @@
 use crate::generator::code_gen;
 use crate::parser::AST;
 use crate::scanner::TokenStream;
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 
 pub fn compile(program: &str) -> Result<String> {
     let tokens = TokenStream::try_from(program)?;

@@ -20,7 +20,7 @@
 // - Output: ID("output") ( Variable )
 // - Variable: ID
 
-use crate::scanner::{Token, TokenStream};
+use crate::scanner::{Token};
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -28,7 +28,7 @@ pub struct AST<'a>(Function<'a>);
 
 impl<'a> AST<'a> {
     pub fn statements(&'a self) -> &'a [Statement<'a>] {
-        &self.0.statements()
+        self.0.statements()
     }
 }
 
@@ -131,7 +131,7 @@ fn try_parse_output<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
 }
 
 fn try_parse_move<'a>(tokens: &[Token<'a>]) -> Result<Statement<'a>> {
-    if tokens.len() < 1 {
+    if tokens.is_empty() {
         return Err(anyhow!(
             "Expected at least 1 token, found {:?}",
             tokens.len()
@@ -349,9 +349,9 @@ impl<'a> TryFrom<&[Token<'a>]> for Compare<'a> {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Num(u8);
 
-impl Into<u8> for &Num {
-    fn into(self) -> u8 {
-        self.0
+impl From<&Num> for u8 {
+    fn from(val: &Num) -> Self {
+        val.0
     }
 }
 
@@ -381,7 +381,7 @@ impl<'a> TryFrom<&Token<'a>> for Variable<'a> {
         let Token::ID(id) = token else {
             return Err(anyhow!("Expected ID, found {:?}", token));
         };
-        if RESERVED_WORDS.contains(&id) {
+        if RESERVED_WORDS.contains(id) {
             return Err(anyhow!("{} is a reserved word", id));
         }
         Ok(Self(id))

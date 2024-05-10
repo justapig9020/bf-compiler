@@ -76,11 +76,11 @@ fn replace(parts: &[&str], map: &HashMap<&str, usize>) -> String {
 }
 
 fn preprocess(asm: &str) -> Result<String> {
-    let commands = asm.split("\n");
+    let commands = asm.split('\n');
     let mut program = String::new();
     let mut map = HashMap::new();
     for command in commands {
-        let parts: Vec<_> = command.split(" ").collect();
+        let parts: Vec<_> = command.split(' ').collect();
         let command = match parts[0] {
             "#define" => {
                 let var = parts[1];
@@ -97,10 +97,10 @@ fn preprocess(asm: &str) -> Result<String> {
 
 pub fn assemble(asm: &str) -> Result<String> {
     let asm = preprocess(asm)?;
-    let commands = asm.split("\n");
+    let commands = asm.split('\n');
     let mut program = String::new();
     for command in commands {
-        let parts: Vec<_> = command.split(" ").collect();
+        let parts: Vec<_> = command.split(' ').collect();
         let bf_command = match parts[0] {
             "add" => {
                 let var = parts[1].parse::<usize>()?;

@@ -38,9 +38,9 @@ Options:
 - Compare: Equal | NotEqual
 - Equal: Variable == NUMBER
 - NotEqual: Variable != NUMBER
-- Move: ID("move_right") | ID("move_left")
-- Input: ID("input") ( Variable )
-- Output: ID("output") ( Variable )
+- Move: move_right | move_left
+- Input: input ( Variable )
+- Output: output ( Variable )
 - Variable: ID
 
 # License
